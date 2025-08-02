@@ -1,0 +1,298 @@
+---
+title: "S3_summary_nommodel"
+output: html_document
+date: "2024-08-28"
+---
+In the first 2 steps, we selected the best distribution and degree of freedom via BIC. Now we are gonna use this script to perform model evaluation, sensitivity analyses, and visualization of normative trajectories.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+library(ggplot2)
+library(tidyverse)
+library(mgcv)
+library(readxl)
+library(parallel)
+library(gamlss)
+library(scales)
+library(stringr)
+# input directory
+wd <- getwd()
+if (str_detect(wd, "cuizaixu_lab")){
+  datapath <- '/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/data'
+  interfileFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/interfileFolder"
+  functionFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/Rcode/functions"
+  resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
+  FigureFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/FigureFolder"
+}else{
+  datapath <- 'V:/yunfu_data/EF_results'
+  demopath <- 'V:/rawdata/rawdata_results0616'
+  FigureFolder <- 'Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/Figures'
+  interfileFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/interfileFolder"
+  functionFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/Rcode_EFnorms/functions"
+  resultFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/results"
+  
+}
+
+GNG_data <- read_xlsx(paste0(datapath, "/Q_GNG.xlsx"))
+back1_data <- read_xlsx(paste0(datapath, "/Q_1back.xlsx"))
+back2_data <- read_xlsx(paste0(datapath, "/Q_2back.xlsx"))
+```
+
+# Step3. Model evaluation
+## 1. Model diagnosis
+The normalized quantile residuals of our normative model were also checked to evaluate the goodness of fit by utilizing two diagnostic methods. 1) Inspect four plots related to residuals. The residuals against the fitted values of mu and the index were evenly distributed around the horizontal line at 0. Moreover, the kernel density estimation of the residuals displayedan approximate normal distribution, and the normal quantile-quantile (Q-Q) plots exhibitedan approximately linear trend with an intercept of 0 and a slope of 1. 2) Adopt the detrended transformed Owen’s plots of the fitted normalized quantile residuals to evaluate the performance of the models. The function uses Owen’s method to construct a nonparametric confidence interval for the true distribution.The zero horizontal line was within the confidence intervals, suggesting that the residuals followed a normal distribution. Taken together, these results showed that our model fits the sample data appropriately.
+
+
+```{r model_diagnosis}
+# 1. Oneback Acc
+# visualize the distribution of dependent variable
+plot(density(back1_data$Oneback_acc), main = "Density Plot of 1-back", xlab = "Value", col = "blue")
+# load models
+performance_1backAcc_distribution <- read.csv(paste0(resultFolder, "/performance_1backAcc_distribution.csv"))
+modelsum_1backAcc_distribution <- readRDS(paste0(resultFolder, "/modelsum_1backAcc_distribution.rds"))
+performance_1backAcc_bsdf <- read.csv(paste0(resultFolder, "/performance_1backAcc_bsdf.csv"))
+modelsum_1backAcc_bsdf <- readRDS(paste0(resultFolder, "/modelsum_1backAcc_bsdf.rds"))
+# performance bic
+performance_1backAcc_distribution_adj <- performance_1backAcc_distribution %>% drop_na()
+performance_1backAcc_distribution_adj <- performance_1backAcc_distribution_adj %>% 
+  filter(converged == TRUE) %>%  
+  drop_na() %>%
+  mutate(BIC_adjusted = BIC - max(BIC)) %>%
+  arrange(BIC_adjusted) %>%
+  slice(1:10)
+# performance_1backAcc_distribution_adj <- performance_1backAcc_distribution_adj %>% 
+#   mutate(BIC_adjusted = BIC - max(BIC)) %>% 
+#   arrange(BIC_adjusted) %>% 
+#   slice(1:10)
+performance_1backAcc_distribution_adj <- performance_1backAcc_distribution_adj[order(performance_1backAcc_distribution_adj$BIC, decreasing = F),]
+performance_1backAcc_distribution_adj$distribution <- factor(performance_1backAcc_distribution_adj$distribution, levels=performance_1backAcc_distribution_adj$distribution)
+ggplot(data = performance_1backAcc_distribution_adj, aes(x = distribution, y = BIC_adjusted)) +
+  geom_bar(stat = "identity", fill = "#A4C5DF", color = "black", size = 0.5, width = 0.7) +
+  labs(title = "1-back",x = "Distribution", y = expression(BIC~(x~10^4))) +  # Add a multiplier annotation to the y-axis
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 8.5, hjust = 0.5),
+    axis.text.x = element_text(size = 8.5, color = "black", angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 8.5, color = "black"),
+    axis.title= element_text(size = 8.5, color = "black"),
+    axis.line = element_blank(), # Remove default axis lines
+    axis.ticks = element_line(color = "black", size = 0.5), # Customize tick marks
+    axis.ticks.length = unit(-0.2, "cm"), # Move tick marks inside the axis
+    panel.grid.major = element_blank(), # Remove major grid lines
+    panel.grid.minor = element_blank(), # Remove minor grid lines
+    panel.border = element_rect(color = "black", fill = NA, size = 1) # Add a border around x and y axes
+  ) +
+  scale_x_discrete(
+    expand = expansion(mult = 0.1) # Add padding at both ends of the x-axis
+  ) +
+  coord_cartesian(ylim = c(min(performance_1backAcc_distribution_adj$BIC_adjusted), max(performance_1backAcc_distribution_adj$BIC_adjusted))) + # Enforce the y-axis range
+  scale_y_continuous(
+    breaks = seq(-12000, -3000, by = 3000), # Set y-axis tick intervals
+    labels = function(x) x / 10000, # Adjust y-axis tick labels to a simpler scientific format
+    expand = c(0, 0) # Remove default padding
+  )
+
+ggsave(paste0(FigureFolder, "/1-back/distribution_BIC_1backAcc.pdf"), width=9, height=7, units = "cm")
+ggsave(paste0(FigureFolder, "/1-back/distribution_BIC_1backAcc.tiff"), width=9, height=7, units = "cm")
+
+# Remove rows with missing values and order by BIC in ascending order
+performance_1backAcc_bsdf_adj<- performance_1backAcc_bsdf %>% 
+  drop_na() %>%
+  arrange(BIC)
+
+# Select the 10 smallest BIC values
+performance_1backAcc_bsdf_adj<- performance_1backAcc_bsdf_adj[1:10, ]
+
+# Create a label for degrees of freedom
+performance_1backAcc_bsdf_adj$bsdf <- paste0(
+  "mu", performance_1backAcc_bsdf_adj$mu.df, 
+  "_sigma", performance_1backAcc_bsdf_adj$sigma.df, 
+  "_degree", performance_1backAcc_bsdf_adj$degree
+)
+
+# Convert bsdf to a factor with levels ordered by BIC
+performance_1backAcc_bsdf_adj$bsdf <- factor(performance_1backAcc_bsdf_adj$bsdf, levels = performance_1backAcc_bsdf_adj$bsdf)
+
+# Adjust BIC values by subtracting the maximum value
+performance_1backAcc_bsdf_adj$BIC_adjusted <- performance_1backAcc_bsdf_adj$BIC - max(performance_1backAcc_bsdf_adj$BIC)
+
+# Plot
+ggplot(data = performance_1backAcc_bsdf_adj) +
+  geom_bar(aes(x = bsdf, y = BIC_adjusted), stat = "identity", 
+           position = "dodge", fill = "#A4C5DF", color = "black", size = 0.5, width = 0.7) +
+  labs(title = "1-back",x = "Degree of freedom", y = expression(BIC~(x~10^2))) +  # Add axis labels with BIC multiplier
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 8.5, hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 8.5, color = "black"), # Adjust x-axis text
+    axis.text.y = element_text(size = 8.5, color = "black"), # Adjust y-axis text
+    axis.title.x = element_text(size = 8.5, color = "black"), # Adjust x-axis title
+    axis.title.y = element_text(size = 8.5, color = "black"), # Adjust y-axis title
+    axis.line = element_blank(), # Remove default axis lines
+    axis.ticks = element_line(color = "black", size = 0.5), # Customize tick marks
+    axis.ticks.length = unit(-0.2, "cm"), # Move tick marks inside the axis
+    panel.grid.major = element_blank(), # Remove major grid lines
+    panel.grid.minor = element_blank(), # Remove minor grid lines
+    panel.border = element_rect(color = "black", fill = NA, size = 1) # Add border around axes
+  ) +
+  scale_y_continuous(
+    breaks = seq(-24, -6, by = 6), # Define y-axis tick intervals
+    labels = function(x) x / 100, # Adjust y-axis tick labels to a simpler scientific format
+    expand = c(0, 0) # Remove default padding
+  ) +
+  scale_x_discrete(
+    expand = expansion(mult = 0.1) # Add padding to the x-axis
+  )
+
+# Save the plot
+ggsave(paste0(FigureFolder, "/1-back/bsdf_BIC_1backAcc.tiff"), width = 9, height = 7, units = "cm")
+ggsave(paste0(FigureFolder, "/1-back/bsdf_BIC_1backAcc.pdf"), width = 9, height = 7, units = "cm")
+
+
+```
+
+Residual plots & Q-Q plots
+
+```{r residual_plots}
+model.1backAcc <- modelsum_1backAcc_bsdf[[which.min(performance_1backAcc_bsdf$BIC)]]
+summary(model.1backAcc)
+mu.formula <- as.character(model.1backAcc$mu.formula)[3]
+sigma.formula <- as.character(model.1backAcc$sigma.formula)[2]
+print(paste0("The best distribution of gamlss for ",str_split_i(as.character(model.1backAcc$mu.formula), "~", 1)[2], " is ", model.1backAcc$family[1], "; the best mu.df is ", substr(mu.formula, regexpr("\\)", mu.formula)-1, regexpr("\\)", mu.formula)-1), ", sigma.df is ", substr(sigma.formula, regexpr("\\)", sigma.formula)-1, regexpr("\\)", mu.formula)-1), "."))
+print(paste0("Diagnosis.1, model of ", str_split_i(as.character(model.1backAcc$mu.formula), "~", 1)[2], " is converged."))
+
+# residual plots & Q-Q plots
+newpar <- par(mfrow = c(2, 2), mar = par("mar") + c(0, 1, 0,0),
+              col.axis = "black", col = "black", col.main = "black",
+              col.lab = "black", pch = 1, cex = 0.45, cex.lab = 1.2,
+              cex.axis = 1, cex.main = 1.2)
+plot(model.1backAcc, par=newpar)
+# Detrended transformed Owen’s plots
+dtop(model.1backAcc)
+# residual plots & Q-Q plots
+tiff(paste0(FigureFolder, "/1-back/diagnosis_mod_", str_split_i(as.character(model.1backAcc$mu.formula), "~", 1)[2], ".tiff"),res=600, width=4000, height=3000)
+newpar <- par(mfrow = c(2, 2), mar = par("mar") + c(0, 1, 0,0),
+              col.axis = "black", col = "black", col.main = "black",
+              col.lab = "black", pch = 1, cex = 0.45, cex.lab = 1.2,
+              cex.axis = 1, cex.main = 1.2)
+plot(model.1backAcc, par=newpar)
+dev.off()
+# Detrended transformed Owen’s plots
+tiff(paste0(FigureFolder, "/1-back/diagnosis_owenplot_mod_", str_split_i(as.character(model.1backAcc$mu.formula), "~", 1)[2], ".tiff"),res=600, width=4000, height=3000)
+dtop(model.1backAcc)
+dev.off()
+
+```
+
+## 2. Model sensitivity analyses (bootstrap)
+To determine reliability and stability of our GAMLSS fitted trajectories, and to obtain confidence intervals on all parameter estimates obtained from the GAMLSS fitting procedure as described above, we ran 1,000 bootstrap iterations with stratified sampling with replacement. The bootstrap replicates were stratified by sex, which maintains the relative proportions of the original datasets.
+
+```{r bootstrap}
+# 1. Oneback Acc
+bootstrapdir <- paste0(interfileFolder, "/bootstrap/1backAcc")
+centile_female_boot <- list()
+centile_male_boot <- list()
+centile_boot <- list()
+for (i in 1:1000) {
+  centile.tmp <- readRDS(paste0(bootstrapdir, "/centile_bootstrap_", i, ".rds"))
+  if (centile.tmp$converged==T){
+    centile_female_boot[[i]] <- centile.tmp$Centiles_female
+    centile_male_boot[[i]] <- centile.tmp$Centiles_male
+    centile_boot[[i]] <- (centile.tmp$Centiles_female+centile.tmp$Centiles_male) / 2
+  }else{
+    centile_female_boot[[i]] <- NA
+    centile_male_boot[[i]] <- NA
+    centile_boot[[i]] <- NA
+  }
+}
+print(paste0(length(which(is.na(centile_female_boot))), " iterations are not converged."))
+# remove NA elements
+centile_female_boot <- centile_female_boot[!is.na(centile_female_boot)]
+centile_male_boot <- centile_male_boot[!is.na(centile_male_boot)]
+centile_boot <- centile_boot[!is.na(centile_boot)]
+
+centile_female_boot_3d <- array(unlist(centile_female_boot), dim = c(9, ncol(centile.tmp$Centiles_female), length(centile_female_boot)))
+centile_male_boot_3d <- array(unlist(centile_male_boot), dim = c(9, ncol(centile.tmp$Centiles_male), length(centile_male_boot)))
+centile_boot_3d <- array(unlist(centile_boot), dim = c(9, ncol(centile.tmp$Centiles_female), length(centile_boot)))
+
+quantile.median <- data.frame(matrix(NA, ncol(centile.tmp$Centiles_female), 9*3))
+names(quantile.median) <- c(paste0("female_", rownames(centile.tmp$Centiles_female)), paste0("male_", rownames(centile.tmp$Centiles_female)), paste0("all_", rownames(centile.tmp$Centiles_female)))
+quantile.P2.5 <- data.frame(matrix(NA, ncol(centile.tmp$Centiles_female), 9*3))
+names(quantile.P2.5) <- c(paste0("female_", rownames(centile.tmp$Centiles_female)), paste0("male_", rownames(centile.tmp$Centiles_female)), paste0("all_", rownames(centile.tmp$Centiles_female)))
+quantile.P97.5 <- data.frame(matrix(NA, ncol(centile.tmp$Centiles_female), 9*3))
+names(quantile.P97.5) <- c(paste0("female_", rownames(centile.tmp$Centiles_female)), paste0("male_", rownames(centile.tmp$Centiles_female)), paste0("all_", rownames(centile.tmp$Centiles_female)))
+
+for (i in 1:9) {
+  # female
+  ## median
+  quantile_female.vec <- centile_female_boot_3d[i, , ]
+  quantile_female.median <- lapply(1:dim(quantile_female.vec)[1], function(x) median(quantile_female.vec[x,]))
+  quantile_female.median <- unlist(quantile_female.median)
+  quantile.median[,i] <- quantile_female.median
+  ## P2.5
+  quantile_female.P2.5 <- lapply(1:dim(quantile_female.vec)[1], function(x) quantile(quantile_female.vec[x,], probs=0.025))
+  quantile_female.P2.5 <- unlist(quantile_female.P2.5)
+  quantile.P2.5[,i] <- quantile_female.P2.5
+  ## P97.5
+  quantile_female.P97.5 <- lapply(1:dim(quantile_female.vec)[1], function(x) quantile(quantile_female.vec[x,], probs=0.975))
+  quantile_female.P97.5 <- unlist(quantile_female.P97.5)
+  quantile.P97.5[,i] <- quantile_female.P97.5
+  
+  # male
+  ## median
+  quantile_male.vec <- centile_male_boot_3d[i, , ]
+  quantile_male.median <- lapply(1:dim(quantile_male.vec)[1], function(x) median(quantile_male.vec[x,]))
+  quantile_male.median <- unlist(quantile_male.median)
+  quantile.median[,i+9] <- quantile_male.median
+  ## P2.5
+  quantile_male.P2.5 <- lapply(1:dim(quantile_male.vec)[1], function(x) quantile(quantile_male.vec[x,], probs=0.025))
+  quantile_male.P2.5 <- unlist(quantile_male.P2.5)
+  quantile.P2.5[,i+9] <- quantile_male.P2.5
+  ## P97.5
+  quantile_male.P97.5 <- lapply(1:dim(quantile_male.vec)[1], function(x) quantile(quantile_male.vec[x,], probs=0.975))
+  quantile_male.P97.5 <- unlist(quantile_male.P97.5)
+  quantile.P97.5[,i+9] <- quantile_male.P97.5
+  
+  # all
+  ## median
+  quantile.vec <- centile_boot_3d[i, , ]
+  quantile_all.median <- lapply(1:dim(quantile.vec)[1], function(x) median(quantile.vec[x,]))
+  quantile_all.median <- unlist(quantile_all.median)
+  quantile.median[,i+18] <- quantile_all.median
+  ## P2.5
+  quantile_all.P2.5 <- lapply(1:dim(quantile.vec)[1], function(x) quantile(quantile.vec[x,], probs=0.025))
+  quantile_all.P2.5 <- unlist(quantile_all.P2.5)
+  quantile.P2.5[,i+18] <- quantile_all.P2.5
+  ## P97.5
+  quantile_all.P97.5 <- lapply(1:dim(quantile.vec)[1], function(x) quantile(quantile.vec[x,], probs=0.975))
+  quantile_all.P97.5 <- unlist(quantile_all.P97.5)
+  quantile.P97.5[,i+18] <- quantile_all.P97.5
+  
+}
+
+n_points <- nrow(quantile.median)
+quantile.median$age <- seq(min(back1_data$Age_year), max(back1_data$Age_year), length.out = n_points)
+quantile.P2.5$age <- seq(min(back1_data$Age_year), max(back1_data$Age_year), length.out = n_points)
+quantile.P97.5$age <- seq(min(back1_data$Age_year), max(back1_data$Age_year), length.out = n_points)
+
+# plot
+ggplot()+
+  geom_point(data = back1_data, aes(x = Age_year, y = Oneback_acc), color = "grey", alpha = 0.3, width = 0, height = 0.1) +
+  geom_line(data=quantile.median, aes(x=age, y=all_quantiles0.5), linetype="solid", linewidth=0.5)+
+  geom_line(data=quantile.P2.5, aes(x=age, y=all_quantiles0.5), linetype=2, linewidth = 0.25, color = "red")+
+  geom_line(data=quantile.P97.5, aes(x=age, y=all_quantiles0.5), linetype=2, linewidth = 0.25, color = "red")+
+  labs(x="Age(years)", y="Acc", title="Bootstrap 95% CI of 1-back")+
+  theme_classic()+
+  scale_x_continuous(name="Age(years)", limits = c(11, 18),breaks = seq(11, 18, by = 1))+
+  theme(plot.title = element_text(size=8.5, hjust=0.5, color = "black"),
+        axis.text = element_text(size=8.5), axis.title = element_text(size=8.5), color = "black")
+ggsave(paste0(FigureFolder, "/1-back/bootstrap_P50_95CI_1backAcc_all.tiff"), width=9, height=7, units = "cm")
+ggsave(paste0(FigureFolder, "/1-back/bootstrap_P50_95CI_1backAcc_all.pdf"), width=9, height=7, units = "cm")
+
+```
+
+
+
+
+

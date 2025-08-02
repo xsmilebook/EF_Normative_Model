@@ -1,0 +1,329 @@
+---
+title: "Step3_EF_psychiatry_corr"
+output: html_document
+date: "2024-07-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+library(ggplot2)
+library(tidyverse)
+library(mgcv)
+library(readxl)
+library(parallel)
+library(gamlss)
+library(scales)
+library(tableone)
+library(openxlsx)
+library(ggradar)
+# input directory
+wd <- getwd()
+if (str_detect(wd, "cuizaixu_lab")){
+  datapath <- '/ibmgpfs/cuizaixu_lab/xuxiaoyu/EFdevelopment/Crsen_survey_GD_YunFu/data/EF_results'
+  demopath <- '/ibmgpfs/cuizaixu_lab/xuxiaoyu/EFdevelopment/Crsen_survey_GD_YunFu/data/rawdata_results0616'
+  interfileFolder <- "/ibmgpfs/cuizaixu_lab/xuxiaoyu/EFdevelopment/Crsen_survey_GD_YunFu/interfileFolder"
+  functionFolder <- "/ibmgpfs/cuizaixu_lab/xuxiaoyu/EFdevelopment/Crsen_survey_GD_YunFu/Rcode_EFnorms/functions"
+  resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/EF_Yunfu/results/corr"
+}else{
+  datapath <- '/Users/tanlirou/Documents/EF_yunfu_check/correlation/data'
+  FigureFolder <- '/Users/tanlirou/Documents/EF_yunfu_check/correlation/results'
+  interfileFolder <- "/Users/tanlirou/Documents/EF_yunfu_check/correlation/data"
+  functionFolder <- "/Users/tanlirou/Documents/EF_yunfu_check/correlation/code/functions"
+  resultFolder <- "/Users/tanlirou/Documents/EF_yunfu_check/correlation/results"
+}
+
+# source functions
+#source(paste0(functionFolder, "/gam_varyingcoefficients.R"))
+source(paste0(functionFolder, "/gamcog_new.R"))
+source(paste0(functionFolder, "/ordinalcorr_new.R"))
+# import dataset
+GNGd_data <- read_csv(paste0(datapath, '/GNGd/GNGd_prime.deviations.csv'))
+back1_data <- read_csv(paste0(datapath, '/1backAcc/back1Acc.deviations.csv'))
+back2_data <- read_csv(paste0(datapath, '/2backACC/back2Acc.deviations.csv'))
+
+```
+
+## 1. Correlations with psychiatric symptoms in different adolescence stages
+
+```{r Sep_adolesc_corr}
+## 1) set up variables
+psyc_variables_continous <- c("SDQ_PB_sum", "SDQ_H_sum", "SDQ_CP_sum", "SDQ_PP_sum", "SDQ_ES_sum", "SDQ_sum")
+psyc_variables_discrete <- c( "SDQ_cutoff")
+# EF vars
+EFvars.set <- matrix(c("d_prime_deviationZ", "GNGd",
+                       "Oneback_acc_deviationZ", "back1",
+                       "Twoback_acc_deviationZ", "back2"), byrow=TRUE,ncol=2,dimnames=list(NULL,c("varname","dataname")))
+EFvars.set <- as.data.frame(EFvars.set)
+## 2) convert variables class & describe variables
+
+GNGd_data[,psyc_variables_discrete] <- lapply(GNGd_data[,psyc_variables_discrete], as.factor)
+GNGd_data[,psyc_variables_continous] <- lapply(GNGd_data[,psyc_variables_continous], as.numeric)
+schooltab <- unique(GNGd_data$School)
+GNGd_data$school_fac <- factor(GNGd_data$School, levels=schooltab, labels=paste0("school", 1:length(schooltab)))
+
+back1_data[,psyc_variables_discrete] <- lapply(back1_data[,psyc_variables_discrete], as.factor)
+back1_data[,psyc_variables_continous] <- lapply(back1_data[,psyc_variables_continous], as.numeric)
+schooltab <- unique(back1_data$School)
+back1_data$school_fac <- factor(back1_data$School, levels=schooltab, labels=paste0("school", 1:length(schooltab)))
+
+back2_data[,psyc_variables_discrete] <- lapply(back2_data[,psyc_variables_discrete], as.factor)
+back2_data[,psyc_variables_continous] <- lapply(back2_data[,psyc_variables_continous], as.numeric)
+schooltab <- unique(back2_data$School)
+back2_data$school_fac <- factor(back2_data$School, levels=schooltab, labels=paste0("school", 1:length(schooltab)))
+# describe
+# GNGd
+describe_tab_GNGd <- CreateTableOne(c(EFvars.set$varname[EFvars.set$dataname=="GNGd"], psyc_variables_continous, psyc_variables_discrete, "Age_year", "Sex"), data=GNGd_data, factorVars = psyc_variables_discrete, testNonNormal=T)
+describe_tab_GNGd.continous <- as.data.frame(describe_tab_GNGd$ContTable[["Overall"]])
+describe_tab_GNGd.discrete <- do.call(rbind, lapply(describe_tab_GNGd$CatTable[["Overall"]], as.data.frame))
+# back1
+describe_tab_back1 <- CreateTableOne(c(EFvars.set$varname[EFvars.set$dataname=="back1"], psyc_variables_continous, psyc_variables_discrete, "Age_year", "Sex"), data=back1_data, factorVars = psyc_variables_discrete, testNonNormal=T)
+describe_tab_back1.continous <- as.data.frame(describe_tab_back1$ContTable[["Overall"]])
+describe_tab_back1.discrete <- do.call(rbind, lapply(describe_tab_back1$CatTable[["Overall"]], as.data.frame))
+# back2
+describe_tab_back2 <- CreateTableOne(c(EFvars.set$varname[EFvars.set$dataname=="back2"], psyc_variables_continous, psyc_variables_discrete, "Age_year", "Sex"), data=back2_data, factorVars = psyc_variables_discrete, testNonNormal=T)
+describe_tab_back2.continous <- as.data.frame(describe_tab_back2$ContTable[["Overall"]])
+describe_tab_back2.discrete <- do.call(rbind, lapply(describe_tab_back2$CatTable[["Overall"]], as.data.frame))
+# save out
+write.xlsx(list(GNGd_con=describe_tab_GNGd.continous,GNGd_dis=describe_tab_GNGd.discrete,back1_con=describe_tab_back1.continous,back1_dis=describe_tab_back1.discrete,back2_con=describe_tab_back2.continous,back2_dis=describe_tab_back2.discrete), paste0(resultFolder, "/description_interest_vars.xlsx"), rowNames=T)
+
+## 3) Correlations in separate age periods
+# continuos variables
+n=0
+corr.result.period <- list()
+for (i in 1:nrow(EFvars.set)){
+  EFvar.tmp <- EFvars.set$varname[i]
+  dataname0 <- paste0(EFvars.set$dataname[i], "_data")
+  data.tmp <- get(dataname0)
+  data.tmp.EF <- data.tmp %>% filter(Age_year > 11 & Age_year <= 18)
+  
+  for (period in c("EF")){
+    dataname <- paste0("data.tmp.", period)
+    corr.result <- list()
+    
+    # Get the data segment and check the number of non-NA values
+    data_segment <- get(dataname)
+    if (sum(!is.na(data_segment)) < 30) { 
+      corr.result.df <- data.frame(period = period, correlation = NA)
+      corr.result.period[[n]] <- corr.result.df
+      next
+    }
+    
+    for (x in 1:length(psyc_variables_continous)){
+      psyvar.tmp <- psyc_variables_continous[x]
+      dependentvar <- psyvar.tmp
+      interest.indep.var <- EFvar.tmp
+      covariates <- "Sex"
+      knots=3
+      
+      result.tmp <- gam.fit.Independent.var(dependentvar, dataname,interest.indep.var, covariates, stats_only = T)
+      result.tmp <- as.data.frame(result.tmp)
+      result.tmp$dataname <- EFvars.set$dataname[i]
+      corr.result[[x]] <- result.tmp
+    }
+    corr.result.df <- do.call(rbind, corr.result)
+    corr.result.df$period <- period
+    n=n+1
+    corr.result.period[[n]] <- corr.result.df
+  }
+}
+corr.result.period.df.con <- do.call(rbind, corr.result.period)
+write.csv(corr.result.period.df.con, paste0(resultFolder, "/corr_EF_psych_continuous.result.csv"), row.names = F)
+
+
+# discrete variables
+# n=0
+# corr.result.period <- list()
+# for (i in 1:nrow(EFvars.set)){
+#   EFvar.tmp <- EFvars.set$varname[i]
+#   dataname0 <- paste0(EFvars.set$dataname[i], "_data")
+#   data.tmp <- get(dataname0)
+#   data.tmp.EF <- data.tmp %>% filter(Age_year > 11 & Age_year <= 18)
+#   
+#   for (period in c("EF")){
+#     dataname <- paste0("data.tmp.", period)
+#     corr.result <- list()
+#     
+#     # Get the data segment and check the number of non-NA values
+#     data_segment <- get(dataname)
+#     if (sum(!is.na(data_segment)) < 30) {
+#       corr.result.df <- data.frame(period = period, correlation = NA)
+#       corr.result.period[[n]] <- corr.result.df
+#       next
+#     }
+#     
+#     clean_data_segment <- na.omit(data_segment)
+#     for (x in 1:length(psyc_variables_discrete)){
+#       psyvar.tmp <- psyc_variables_discrete[x]
+#       dependentvar <- EFvar.tmp
+#       interest.indep.var <- psyvar.tmp
+#       covariates <- "Sex"
+#       knots=3
+#       
+#       result.tmp <- ordinalcorr(dependentvar, dataname, interest.indep.var,  covariates,  stats_only = T)
+#       result.tmp <- as.data.frame(result.tmp)
+#       result.tmp$dataname <- EFvars.set$dataname[i]
+#       corr.result[[x]] <- result.tmp
+#     }
+#     corr.result.df <- do.call(rbind, corr.result)
+#     corr.result.df$period <- period
+#     n=n+1
+#     corr.result.period[[n]] <- corr.result.df
+#   }
+# }
+# corr.result.period.df.dis <- do.call(rbind, corr.result.period)
+# write.csv(corr.result.period.df.dis, paste0(resultFolder, "/corr_EF_psych_discrete.result.csv"), row.names = F)
+
+
+#corr.result.period.df <- rbind(corr.result.period.df.con, corr.result.period.df.dis)
+corr.result.period.df <- rbind(corr.result.period.df.con)
+## plot
+corr.result.period.df$correstimate <- as.numeric(corr.result.period.df$correstimate)
+lwth <- min(corr.result.period.df$correstimate, na.rm = TRUE)
+upth <- max(corr.result.period.df$correstimate, na.rm = TRUE)
+y_levels <- c("SDQ_PB_sum", "SDQ_H_sum", "SDQ_CP_sum", "SDQ_PP_sum",  "SDQ_ES_sum", "SDQ_sum" )  # 确保顺序
+for (i in 1:nrow(EFvars.set)) {
+  EFvar.tmp <- EFvars.set$varname[i]
+  dataname <- EFvars.set$dataname[i]
+  corr.result.tmp <- corr.result.period.df[which(corr.result.period.df$interest.indep.var == EFvar.tmp & corr.result.period.df$dataname == dataname), ]
+  corr.result.tmp$anova.cov.pvalue <- as.numeric(corr.result.tmp$anova.cov.pvalue)
+  corr.result.tmp$anovap.fdr <- p.adjust(corr.result.tmp$anova.cov.pvalue, method = "fdr")
+  print(corr.result.tmp[, c("interest.indep.var","parcel", "anova.cov.pvalue", "anovap.fdr")])
+    
+  corr.result.tmp$sig <- (corr.result.tmp$anovap.fdr < 0.05)
+  corr.result.tmp$period <- factor(corr.result.tmp$period, levels = c("EF"))
+  corr.result.tmp.sig <- corr.result.tmp[corr.result.tmp$sig == TRUE, ]
+  corr.result.tmp$correstimate <- as.numeric(corr.result.tmp$correstimate)
+
+  # Sets the y-axis order
+  corr.result.tmp$parcel <- factor(corr.result.tmp$parcel, levels = y_levels)
+
+  Fig <- ggplot() +
+    geom_tile(data = corr.result.tmp, aes(x = period, y = parcel, fill = correstimate), color = "white") +
+    geom_text(data = corr.result.tmp.sig, aes(x = period, y = parcel, label = "*"), vjust = 0.7, hjust = 0.5, size = 6) +
+    scale_fill_distiller(type = "seq", palette = "RdBu", limits = c(lwth, upth), direction = -1) +
+    scale_y_discrete(limits = y_levels, 
+                     labels = c("SDQ_PB_sum" = "Prosocial Behavior","SDQ_H_sum" = "Hyperactivity",
+                                "SDQ_CP_sum" = "Conduct Problems","SDQ_PP_sum" = "Peer Problems",
+                                "SDQ_ES_sum" = "Emotional Symptoms","SDQ_sum" = "Total SDQ Score")) +
+    labs(title = paste0("Correlation between Executive functions and ", EFvar.tmp, " in ", dataname),
+         x = "Periods of adolescence", y = "Psychiatric scores") +
+    theme(axis.line = element_blank(),
+          aspect.ratio = 1.2,
+          axis.text.x = element_text(size = 12, hjust = 0.5),
+          axis.text.y = element_text(size = 12, hjust = 0.5, vjust = 0.5),
+          axis.title = element_text(size = 18),
+          plot.title = element_text(size = 18, hjust = 0.5),
+          legend.title = element_text(size = 12),
+          legend.text = element_text(size = 12),
+          panel.background = element_rect(fill = NA),
+          panel.grid.major = element_line(linewidth = 0),
+          panel.grid.minor = element_line(linewidth = 1))
+
+  print(Fig)
+  ggsave(paste0(FigureFolder, "/", dataname, "/corr_continuouspsych_", EFvar.tmp, "_3periods.pdf"), width = 14, height = 18, units = "cm")
+}
+
+
+combined_results <- data.frame()
+for (i in 1:nrow(EFvars.set)) {
+  EFvar.tmp <- EFvars.set$varname[i]
+  dataname <- EFvars.set$dataname[i]
+  corr.result.tmp <- corr.result.period.df[which(corr.result.period.df$interest.indep.var == EFvar.tmp & corr.result.period.df$dataname == dataname), ]
+  corr.result.tmp$anova.cov.pvalue <- as.numeric(corr.result.tmp$anova.cov.pvalue)
+  corr.result.tmp$correstimate <- as.numeric(corr.result.tmp$correstimate)
+  corr.result.tmp$anovap.fdr <- p.adjust(corr.result.tmp$anova.cov.pvalue, method = "fdr")
+  corr.result.tmp$sig <- (corr.result.tmp$anovap.fdr < 0.05)
+  corr.result.tmp$period <- factor(corr.result.tmp$period, levels = c("EF"))
+  combined_results <- rbind(combined_results, corr.result.tmp)
+}
+## Data Preparation: Convert your data into a format suitable for drawing histograms
+y_levels <- c("SDQ_sum", "SDQ_ES_sum", "SDQ_PP_sum", "SDQ_CP_sum", "SDQ_H_sum", "SDQ_PB_sum")
+combined_results$correstimate <- as.numeric(combined_results$correstimate)
+# Customize the labels of mental variables
+psy_labels <- c("SDQ_sum" = "SDQ Total Score","SDQ_ES_sum" = "Emotional Symptoms",
+                              "SDQ_PP_sum" = "Peer Problems","SDQ_CP_sum" = "Conduct Problems",
+                              "SDQ_H_sum" = "Hyperactivity","SDQ_PB_sum" = "Prosocial Behavior" )
+
+# Apply a new label
+combined_results$parcel <- factor(combined_results$parcel,
+                                              levels = y_levels,
+                                              labels = psy_labels)
+combined_results$Task <- factor(combined_results$dataname, levels = c("GNGd", "back1", "back2"),
+                                labels = c("Go No go", "1back", "2back"))
+
+# Manually define the color of the task
+# task_colors <- c("Go No go" = "#e89da0",
+#                  "1back" = "#9fba95",
+#                  "2back" = "#80c1c4")
+
+task_colors <- c("Go No go" = "#f46d43",
+                 "1back" = "#91cc75",
+                 "2back" = "#73c0de")
+# Determine the upper and lower limits of the y-axis
+max_correlation <- max(abs(combined_results$correstimate), na.rm = TRUE)
+y_limits <- c(-0.15, 0.15)  
+# 
+# # plotting
+# Fig <- ggplot(data = combined_results, aes(x = parcel, y = correstimate, fill = Task, color = Task)) +
+#   geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.5, size = 1) +  
+#   geom_hline(yintercept = 0, linetype = "solid", color = "black", size = 0.4) +  # Add a horizontal line with y = 0
+#   scale_fill_manual(values = task_colors) +  
+#   scale_color_manual(values = task_colors) +  
+#   scale_y_continuous(limits = y_limits) +  
+#   labs(title = "Correlation between Executive Functions and Mental Health",
+#        x = "",
+#        y = "correlation coefficient",
+#        color = "Tasks",
+#        fill = "Tasks") +  
+#   theme_minimal() +
+#   theme(axis.line.y = element_line(size = 0.8, color = "black"), 
+#         axis.text.x = element_text(size = 14, hjust = 0.5), 
+#         axis.text.y = element_text(size = 16),
+#         axis.title = element_text(size = 20),
+#         plot.title = element_text(size = 22, hjust = 0.5),
+#         legend.title = element_text(size = 12),
+#         legend.text = element_text(size = 10),
+#         legend.position = "bottom",
+#         panel.grid.major = element_blank(), 
+#         panel.grid.minor = element_blank())  
+#   # geom_text(data = combined_results[combined_results$sig == TRUE, ],  # Filter significant data
+#   #           aes(x = parcel, y = correstimate, label = "*", color = Task),  
+#   #           position = position_dodge(width = 0.5),  # Align with columns
+#   #           vjust = -0.5, size = 6)  # Adjust the position and size of the symbol
+#   # geom_text(data = combined_results[combined_results$sig == TRUE, ],  # Filter significant data
+#   #           aes(x = parcel, y = correstimate, label = "*", color = Task),  
+#   #           position = position_dodge(width = 0.5),  # Align with columns
+#   #           vjust = -0.5, size = 6)  # Adjust the position and size of the symbol
+
+# Print and save the image
+vline_positions <- seq(1.5, length(unique(combined_results$parcel)) - 0.5, by = 1)
+Fig <- ggplot(data = combined_results, aes(x = parcel, y = correstimate, fill = Task, color = Task)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7), width = 0.5, size = 1) + 
+  geom_hline(yintercept = 0, linetype = "solid", color = "gray40", size = 0.4) +  # Add a horizontal line with y = 0
+  scale_fill_manual(values = task_colors) +  
+  scale_color_manual(values = task_colors) +  
+  scale_y_continuous(limits = y_limits, breaks = seq(-0.15, 0.15, by = 0.05), labels = scales::number_format()) +  
+  labs(title = "Correlation between Executive Functions and Mental Health",
+       x = "",
+       y = "correlation coefficient",
+       color = "Tasks",
+       fill = "Tasks") +  
+  theme_minimal() +
+  theme(axis.line.y = element_blank(),  # remove axis y 
+        axis.title = element_text(size = 14),
+        axis.text.x = element_text(size = 14, hjust = 0.5), 
+        axis.text.y = element_text(size = 12),  
+        plot.title = element_text(size = 22, hjust = 0.5),
+        legend.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        legend.position = "bottom",
+        panel.grid.major.y = element_line(color = "grey90", linetype = "solid",size = 0.2),  # Add a light line as a horizontal guide
+        panel.grid.major.x = element_blank(),  
+        panel.grid.minor = element_blank()) + 
+  annotate("segment", x = vline_positions, xend = vline_positions, y = -0.005, yend = 0, color = "grey40", size = 0.4)
+print(Fig)
+ggsave(paste0(FigureFolder, "/correlation_barplot.pdf"), plot = Fig, width = 30, height = 12, units = "cm")
+
+```
+  

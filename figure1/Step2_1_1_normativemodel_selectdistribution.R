@@ -19,7 +19,7 @@ if (str_detect(wd, "cuizaixu_lab")){
   FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
   interfileFolder <- "D:/datasets/yunfu/interfile_folder"
   functionFolder <- "D:/code/EF_Normative_Model/functions"
-  resultFolder <- "D:/datasets/yunfu/results"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/select_parameter"
 
 }
 

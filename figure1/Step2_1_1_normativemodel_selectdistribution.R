@@ -15,12 +15,12 @@ if (str_detect(wd, "cuizaixu_lab")){
   functionFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/Rcode/functions"
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
 }else{
-  datapath <- 'V:/yunfu_data/EF_results'
-  FigureFolder <- 'Z:/DMRI_network_development/EF_development/data0715/Figures_check'
-  interfileFolder <- "Z:/DMRI_network_development/EF_development/interfileFolder_check"
-  functionFolder <- "Z:/DMRI_network_development/EF_development/data0715/Rcode_EFnorms/functions"
-  resultFolder <- "Z:/DMRI_network_development/EF_development/data0715/results_check"
-  
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results"
+
 }
 
 # source functions

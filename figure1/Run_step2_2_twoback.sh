@@ -7,4 +7,4 @@
 export R_LIBS_USER=/GPFS/cuizaixu_lab_temp/xuhaoshu/R/packages
 module load R/4.2.2
 n=$1
-Rscript /ibmgpfs/cuizaixu_lab/xuhaoshu/EF_Normative_Model/figure1/Step2_2_bootstrap_GNGd.R $n
+Rscript /ibmgpfs/cuizaixu_lab/xuhaoshu/EF_Normative_Model/figure1/Step2_2_bootstrap_TwobackACC.R $n

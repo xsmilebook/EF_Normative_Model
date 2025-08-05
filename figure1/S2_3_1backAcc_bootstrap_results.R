@@ -3,9 +3,9 @@ library(tidyverse)
 library(ggplot2)
 
 # Set file directories
-bootstrap_dir <- "D:/datasets/yunfu/interfile_folder/bootstrap/1backAcc"
-output_dir <- "D:/datasets/yunfu/interfile_folder/bootstrap"
-figure_dir <- "D:/datasets/yunfu/figures/fig1"
+bootstrap_dir <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/interfile_folder/bootstrap/1backAcc"
+output_dir <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/interfile_folder/bootstrap"
+figure_dir <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/figures/fig1"
 file_list <- list.files(path = bootstrap_dir, pattern = "*.rds", full.names = TRUE)
 
 # Initialize lists to store all derivative results

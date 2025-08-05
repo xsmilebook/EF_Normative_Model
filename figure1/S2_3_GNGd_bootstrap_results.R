@@ -2,9 +2,9 @@
 library(tidyverse)
 library(ggplot2)
 
-bootstrap_dir <- "D:/datasets/yunfu/interfile_folder/bootstrap/GNGd_prime"
-output_dir <- "D:/datasets/yunfu/interfile_folder/bootstrap"
-figure_dir <- "D:/datasets/yunfu/figures/fig1"
+bootstrap_dir <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/interfile_folder/bootstrap/GNGd_prime"
+output_dir <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/interfile_folder/bootstrap"
+figure_dir <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/figures/fig1"
 file_list <- list.files(path = bootstrap_dir, pattern = "*.rds", full.names = TRUE)
 
 mu_derivatives_all <- list()

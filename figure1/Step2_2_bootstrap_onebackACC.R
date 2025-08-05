@@ -9,17 +9,17 @@ library(scales)
 # input directory
 wd <- getwd()
 if (str_detect(wd, "cuizaixu_lab")){
-  datapath <- '/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/data'
-  interfileFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/interfileFolder"
-  functionFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/Rcode/functions"
-  resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
+  datapath <- '/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/raw_data'
+  FigureFolder <- '/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/figures/fig1'
+  interfileFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/interfile_folder"
+  functionFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/EF_Normative_Model/functions"
+  resultFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/results/gamlss/select_parameter"
 }else{
-  datapath <- '/Users/tanlirou/Documents/yunfu/EF_development/EF-Psy200'
-  #demopath <- 'V:/rawdata/rawdata_results0616'
-  FigureFolder <- '/Users/tanlirou/Documents/yunfu/Normativemodel/Figures'
-  interfileFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/interfileFolder"
-  functionFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/code"
-  resultFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/step2"
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/select_parameter"
   
 }
 

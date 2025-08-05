@@ -25,18 +25,14 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/FigureFolder"
 }else{
-  datapath <- 'V:/yunfu_data/EF_results'
-  demopath <- 'V:/rawdata/rawdata_results0616'
-  FigureFolder <- 'Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/Figures'
-  interfileFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/interfileFolder"
-  functionFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/Rcode_EFnorms/functions"
-  resultFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/results"
-  
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/select_parameter"
 }
 
-GNG_data <- read_xlsx(paste0(datapath, "/Q_GNG.xlsx"))
 back1_data <- read_xlsx(paste0(datapath, "/Q_1back.xlsx"))
-back2_data <- read_xlsx(paste0(datapath, "/Q_2back.xlsx"))
 ```
 
 # Step3. Model evaluation
@@ -61,10 +57,7 @@ performance_1backAcc_distribution_adj <- performance_1backAcc_distribution_adj %
   mutate(BIC_adjusted = BIC - max(BIC)) %>%
   arrange(BIC_adjusted) %>%
   slice(1:10)
-# performance_1backAcc_distribution_adj <- performance_1backAcc_distribution_adj %>% 
-#   mutate(BIC_adjusted = BIC - max(BIC)) %>% 
-#   arrange(BIC_adjusted) %>% 
-#   slice(1:10)
+
 performance_1backAcc_distribution_adj <- performance_1backAcc_distribution_adj[order(performance_1backAcc_distribution_adj$BIC, decreasing = F),]
 performance_1backAcc_distribution_adj$distribution <- factor(performance_1backAcc_distribution_adj$distribution, levels=performance_1backAcc_distribution_adj$distribution)
 ggplot(data = performance_1backAcc_distribution_adj, aes(x = distribution, y = BIC_adjusted)) +

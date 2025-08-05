@@ -1,17 +1,17 @@
-# 加载必要的库
+# import library
 library(tidyverse)
 library(ggplot2)
 
-# 设置文件目录
-bootstrap_dir <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/interfileFolder/bootstrap/GNGd_prime"
-output_dir <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/interfileFolder/bootstrap"
+bootstrap_dir <- "D:/datasets/yunfu/interfile_folder/bootstrap/GNGd_prime"
+output_dir <- "D:/datasets/yunfu/interfile_folder/bootstrap"
+figure_dir <- "D:/datasets/yunfu/figures/fig1"
 file_list <- list.files(path = bootstrap_dir, pattern = "*.rds", full.names = TRUE)
 
-# 初始化列表以保存所有导数结果
 mu_derivatives_all <- list()
 sigma_derivatives_all <- list()
 sigma_all <- list()
-# 读取并提取每个文件的导数结果
+
+# read derivative results
 for (file in file_list) {
   bootstrap_result <- readRDS(file)
   mu_derivatives_all[[length(mu_derivatives_all) + 1]] <- bootstrap_result$P50_derivative
@@ -19,12 +19,11 @@ for (file in file_list) {
   sigma_all[[length(sigma_all) + 1]] <- bootstrap_result$sigma_pred
 }
 
-# 合并导数数据到矩阵形式，每列代表一次bootstrap的结果
 mu_derivatives_matrix <- do.call(cbind, mu_derivatives_all)
 sigma_derivatives_matrix <- do.call(cbind, sigma_derivatives_all)
 sigma_matrix <- do.call(cbind, sigma_all)
 
-# 计算 mu 的 P50（中位数）及置信区间
+# compute the median number of mu
 P50_mean <- rowMeans(mu_derivatives_matrix)
 P50_ci <- apply(mu_derivatives_matrix, 1, quantile, probs = c(0.025, 0.975))
 
@@ -34,10 +33,8 @@ sigma_ci <- apply(sigma_derivatives_matrix, 1, quantile, probs = c(0.025, 0.975)
 sigma_pred <- rowMeans(sigma_matrix)
 sigma_pred_ci <- apply(sigma_matrix, 1, quantile, probs = c(0.025, 0.975))
 
-# 从第一个文件中提取年龄点信息
 age_points <- readRDS(file_list[1])$Age_points
 
-# 将结果保存为数据框
 derivative_summary <- data.frame(
   Age = age_points,
   P50_mean = P50_mean,
@@ -51,21 +48,19 @@ derivative_summary <- data.frame(
   sigma_pred_upper = sigma_pred_ci[2, ]
 )
 
-# 绘制 mu 的导数随年龄变化的均值和置信区间
+# Plot the mean and confidence interval of the derivative of mu as a function of age
 p1 <- ggplot(derivative_summary, aes(x = Age, y = P50_mean)) +
   geom_line(color = "blue") +
   geom_ribbon(aes(ymin = P50_lower, ymax = P50_upper), alpha = 0.2, fill = "blue") +
-  labs(title = "μ的导数随年龄变化的均值和置信区间", x = "年龄", y = "μ的导数") +
+  labs(title = "Mean and confidence interval of the derivative of μ varying with age", x = "age", y = "derivative of μ") +
   theme_minimal()
 
-# 绘制 sigma 的导数随年龄变化的均值和置信区间
-p2 <- ggplot(derivative_summary, aes(x = Age, y = sigma_meam)) +
+p2 <- ggplot(derivative_summary, aes(x = Age, y = sigma_mean)) +
   geom_line(color = "red") +
   geom_ribbon(aes(ymin = sigma_lower, ymax = sigma_upper), alpha = 0.2, fill = "red") +
-  labs(title = "σ的导数随年龄变化的均值和置信区间", x = "年龄", y = "σ的导数") +
+  labs(title = "Mean and confidence interval of the derivative of σ varying with age", x = "age", y = "derivative of σ") +
   theme_minimal()
 
-# 保存结果数据和图像
-write.csv(derivative_summary, file = file.path(output_dir, "derivative_summary_GNGd.csv"), row.names = FALSE)
-ggsave(file.path(output_dir, "mu_derivative_age_GNGd.png"), plot = p1, width = 8, height = 6, dpi = 300)
-ggsave(file.path(output_dir, "sigma_derivative_age_GNGd.png"), plot = p2, width = 8, height = 6, dpi = 300)
+write.csv(derivative_summary, file = file.path(output_dir, "GNGd_prime", "derivative_summary_GNGd.csv"), row.names = FALSE)
+ggsave(file.path(figure_dir, "mu_derivative_age_GNGd.png"), plot = p1, width = 8, height = 6, dpi = 300)
+ggsave(file.path(figure_dir, "sigma_derivative_age_GNGd.png"), plot = p2, width = 8, height = 6, dpi = 300)

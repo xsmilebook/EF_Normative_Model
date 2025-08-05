@@ -66,24 +66,31 @@ gamlss_comparedistribution <- function(dataname, dependentvar, smoothvar,IDvar, 
                   "ST4", "ST5", "TF")
   con<-gamlss.control(n.cyc=200)
   
-  mod.sum <- mclapply(1:length(familylist), function(i){
-    command <- paste0("mod.tmp <- gamlss(mod.mu.formula, sigma.formula =~ bs(age) + ", 
-                      covariates, 
-                      ", nu.formula = ~1,family=", familylist[i],", data=gam.data2, control=con)")
-    
-    eval(parse(text = command))
-    mod.tmp$ID <- gam.data2[[IDvar]]
-    return(mod.tmp)
-  }, mc.cores = 50)
+  num_cores <- 24
+  cl <- makeCluster(num_cores)
   
-  # mod.sum <- list()
-  # for (i in 1:length(familylist)){
-  #   command <- paste0("mod.sum[[i]] <- gamlss(mod.mu.formula, sigma.formula =~ bs(age) + ", 
-  #                     covariates, 
-  #                ", nu.formula = ~1,family=", familylist[i],", data=gam.data2, control=con)")
-  #   
-  #   eval(parse(text = command))
-  # }
+  clusterEvalQ(cl, {
+    library(gamlss)
+    library(tidyverse) 
+  })
+  clusterExport(cl, varlist = c("mod.mu.formula", "covariates", "familylist", "con", "gam.data2", "IDvar", "dependentvar"), envir = environment())
+  
+  mod.sum <- parLapply(cl, 1:length(familylist), function(i){
+    result <- try({
+      command <- paste0("mod.tmp <- gamlss(mod.mu.formula, sigma.formula =~ bs(age) + ",
+                        covariates,
+                        ", nu.formula = ~1,family=", familylist[i],", data=gam.data2, control=con)")
+      eval(parse(text = command))
+      mod.tmp$ID <- gam.data2[[IDvar]] 
+      return(mod.tmp)
+    }, silent = TRUE)
+    
+    if (inherits(result, "try-error")) {
+      return(list(error = TRUE, message = attr(result, "condition")$message))
+    }
+    
+    return(result)
+  })
   
   performance <- data.frame(matrix(NA, length(familylist), 4))
   names(performance) <- c("model_ID", "distribution", "converged", "BIC")
@@ -134,26 +141,37 @@ gamlss_compare.bs.df <- function(dataname, dependentvar, smoothvar, IDvar, bs.df
   }
   
   con<-gamlss.control(n.cyc=200)
-  mod.sum <- mclapply(1:nrow(bs.df.set), function(i){
-    # df for mu // df for sigma
+  
+  num_cores <- 24
+  cl <- makeCluster(num_cores)
+  
+  clusterEvalQ(cl, {
+    library(gamlss)
+    library(tidyverse)
+  })
+  clusterExport(cl, varlist = c("bs.df.set", "distribution.fam", "dependentvar", "smoothvar", "covariates", "randomvar", "gam.data2", "IDvar", "con"), envir = environment())
+  
+  mod.sum <- parLapply(cl, 1:nrow(bs.df.set), function(i){
     mu.df <- bs.df.set[i, 1]
     sigma.df <- bs.df.set[i, 2]
     degree <- bs.df.set[i, 3]
-    
     if (! is.na(randomvar)){
-      mod.mu.formula <- as.formula(sprintf("%s ~ bs(%s, df = %s, degree = %s) + %s + random(as.factor(%s))", dependentvar, "age", mu.df, degree, covariates, "randomvar"))
+      mod.mu.formula_str <- sprintf("%s ~ bs(%s, df = %s, degree = %s) + %s + random(as.factor(%s))", dependentvar, "age", mu.df, degree, covariates, "randomvar")
     }else{
-      mod.mu.formula <- as.formula(sprintf("%s ~ bs(%s, df = %s, degree = %s) + %s", dependentvar, "age", mu.df, degree, covariates))
+      mod.mu.formula_str <- sprintf("%s ~ bs(%s, df = %s, degree = %s) + %s", dependentvar, "age", mu.df, degree, covariates)
     }
+    sigma_formula_str <- paste0("~ bs(age, df = ", sigma.df, ", degree = ", degree, ") + ", covariates)
     
-    command <- paste0("mod.tmp <- gamlss(mod.mu.formula, sigma.formula =~ bs(age, df = ", sigma.df, ", degree = ", degree,") + ", 
-                      covariates, 
+    command <- paste0("mod.tmp <- gamlss(as.formula('", mod.mu.formula_str, "'), sigma.formula =", sigma_formula_str,
                       ", nu.formula = ~1,family=", distribution.fam,", data=gam.data2, control=con)")
-    
     eval(parse(text = command))
     mod.tmp$ID <- gam.data2[[IDvar]]
     return(mod.tmp)
-  }, mc.cores = 50)
+  })
+  
+  stopCluster(cl)
+
+  
   
   performance <- data.frame(matrix(NA, nrow(bs.df.set), 7))
   names(performance) <- c("model_ID", "distribution", "converged", "BIC", "mu.df", "sigma.df", "degree")
@@ -170,7 +188,7 @@ gamlss_compare.bs.df <- function(dataname, dependentvar, smoothvar, IDvar, bs.df
   
   bs.df.set <- bs.df.set[performance$converged==T, ]
   print(paste0("The best distibution for ", dependentvar, " is mu.df = ", bs.df.set[which.min(performance$BIC[performance$converged==T]), 1], 
-               "sigma.df = ", bs.df.set[which.min(performance$BIC[performance$converged==T]), 2], ", degree = ", bs.df.set[which.min(performance$BIC[performance$converged==T]), 3], "."))
+               ", sigma.df = ", bs.df.set[which.min(performance$BIC[performance$converged==T]), 2], ", degree = ", bs.df.set[which.min(performance$BIC[performance$converged==T]), 3], "."))
   #saveRDS(mod.sum, paste0(saveout_dir, "/", dependentvar, "_gamlss_26distributions_bsds_", bs.df, ".rds"))
   
   performance$dependentvar <- dependentvar

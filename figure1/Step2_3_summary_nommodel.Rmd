@@ -21,12 +21,11 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/FigureFolder"
 }else{
-  datapath <- 'V:/yunfu_data/EF_results'
-  demopath <- 'V:/rawdata/rawdata_results0616'
-  FigureFolder <- 'Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/Figures'
-  interfileFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/interfileFolder"
-  functionFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/Rcode_EFnorms/functions"
-  resultFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/results"
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/select_parameter"
   
 }
 
@@ -86,8 +85,8 @@ ggplot(data = performance_GNGd_prime_distribution_adj, aes(x = distribution, y =
     expand = c(0, 0) # Remove default padding
   )
 
-ggsave(paste0(FigureFolder, "/Gonogo/distribution_BIC_GNGd_prime.pdf"), width=9, height=7, units = "cm")
-ggsave(paste0(FigureFolder, "/Gonogo/distribution_BIC_GNGd_prime.tiff"), width=9, height=7, units = "cm")
+ggsave(paste0(FigureFolder, "/GNGd/distribution_BIC_GNGd_prime.pdf"), width=9, height=7, units = "cm")
+ggsave(paste0(FigureFolder, "/GNGd/distribution_BIC_GNGd_prime.tiff"), width=9, height=7, units = "cm")
 
 # Remove rows with missing values and order by BIC in ascending order
 performance_GNGd_prime_bsdf_adj<- performance_GNGd_prime_bsdf %>% 
@@ -140,8 +139,8 @@ ggplot(data = performance_GNGd_prime_bsdf_adj) +
   )
 
 # Save the plot
-ggsave(paste0(FigureFolder, "/Gonogo/bsdf_BIC_GNGd_prime.tiff"), width = 9, height = 7, units = "cm")
-ggsave(paste0(FigureFolder, "/Gonogo/bsdf_BIC_GNGd_prime.pdf"), width = 9, height = 7, units = "cm")
+ggsave(paste0(FigureFolder, "/GNGd/bsdf_BIC_GNGd_prime.tiff"), width = 9, height = 7, units = "cm")
+ggsave(paste0(FigureFolder, "/GNGd/bsdf_BIC_GNGd_prime.pdf"), width = 9, height = 7, units = "cm")
 
 
 
@@ -164,7 +163,7 @@ plot(model.GNGd_prime, par=newpar)
 # Detrended transformed Owen’s plots
 dtop(model.GNGd_prime)
 # residual plots & Q-Q plots
-tiff(paste0(FigureFolder, "/Gonogo/diagnosis_mod_", str_split_i(as.character(model.GNGd_prime$mu.formula), "~", 1)[2], ".tiff"),res=600, width=4000, height=3000)
+tiff(paste0(FigureFolder, "/GNGd/diagnosis_mod_", str_split_i(as.character(model.GNGd_prime$mu.formula), "~", 1)[2], ".tiff"),res=600, width=4000, height=3000)
 newpar <- par(mfrow = c(2, 2), mar = par("mar") + c(0, 1, 0,0),
               col.axis = "black", col = "black", col.main = "black",
               col.lab = "black", pch = 1, cex = 0.45, cex.lab = 1.2,
@@ -172,7 +171,7 @@ newpar <- par(mfrow = c(2, 2), mar = par("mar") + c(0, 1, 0,0),
 plot(model.GNGd_prime, par=newpar)
 dev.off()
 # Detrended transformed Owen’s plots
-tiff(paste0(FigureFolder, "/Gonogo/diagnosis_owenplot_mod_", str_split_i(as.character(model.GNGd_prime$mu.formula), "~", 1)[2], ".tiff"),res=600, width=4000, height=3000)
+tiff(paste0(FigureFolder, "/GNGd/diagnosis_owenplot_mod_", str_split_i(as.character(model.GNGd_prime$mu.formula), "~", 1)[2], ".tiff"),res=600, width=4000, height=3000)
 dtop(model.GNGd_prime)
 dev.off()
 
@@ -282,8 +281,11 @@ ggplot()+
   scale_x_continuous(name="Age(years)", limits = c(11, 18),breaks = seq(11, 18, by = 1))+
   theme(plot.title = element_text(size=8.5, hjust=0.5, color = "black"),
         axis.text = element_text(size=8.5), axis.title = element_text(size=8.5), color = "black")
-ggsave(paste0(FigureFolder, "/Gonogo/bootstrap_P50_95CI_GNGd_prime_all.tiff"), width=9, height=7, units = "cm")
-ggsave(paste0(FigureFolder, "/Gonogo/bootstrap_P50_95CI_GNGd_prime_all.pdf"), width=9, height=7, units = "cm")
+ggsave(paste0(FigureFolder, "/GNGd/bootstrap_P50_95CI_GNGd_prime_all.tiff"), width=9, height=7, units = "cm")
+ggsave(paste0(FigureFolder, "/GNGd/bootstrap_P50_95CI_GNGd_prime_all.pdf"), width=9, height=7, units = "cm")
+
+
+
 # # plot female-male
 # ggplot()+
 #   geom_point(data=GNG_data, aes(x=Age_year, y=d_prime), color="grey", alpha=0.5)+

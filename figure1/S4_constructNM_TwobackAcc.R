@@ -15,12 +15,11 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/FigureFolder"
 }else{
-  datapath <- '/Users/tanlirou/Documents/yunfu/EF_development/EF-Psy200'
-  demopath <- 'V:/rawdata/rawdata_results0616'
-  FigureFolder <- '/Users/tanlirou/Documents/yunfu/Normativemodel/Figures'
-  interfileFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/interfileFolder"
-  functionFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/code"
-  resultFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/step2"
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder/Normative_Model"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/Normative_Model"
 }
 
 # # set resolution
@@ -59,7 +58,7 @@ covariates <- "Sex"
 stratify <- "Sex"
 quantile.vec <- c(0.01,0.025, 0.05, 0.25, 0.5, 0.75, 0.95,0.975, 0.99)
 
-if (str_detect(wd, "cuizaixu_lab")){
+if (!file.exists(paste0(interfileFolder, "/2-back/GAMLSS.back2Accset1.sum.rds"))){
   mod.set1 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates,
                         mu.df, sigma.df, degree, distribution.fam, IDvar, quantile.vec, "Sex")
   saveRDS(mod.set1, paste0(interfileFolder, "/2-back/GAMLSS.back2Accset1.sum.rds"))
@@ -71,10 +70,6 @@ if (str_detect(wd, "cuizaixu_lab")){
 # performance
 modelperformance.set1 <- mod.set1$performance.tb
 print(paste(sum(modelperformance.set1$converged), "models converged.")) 
-# replicate previous results
-#SCrankcorr(modelperformance.set1, "partialRsq", ds.resolution)
-# ds.resolution Interest.var r.spearman   p.spearman
-# 1            12   partialRsq -0.4724948 1.255304e-05
 
 # compute deviations
 gam.data2 <- back2_data.set1
@@ -100,7 +95,7 @@ saveRDS(deviation.set2.df, paste0(interfileFolder, "/2-back/EF_back2Acc.set2_dev
 
 # set2
 dataname <- "back2_data.set2"
-if (str_detect(wd, "cuizaixu_lab")){
+if (!file.exists(paste0(interfileFolder, "/2-back/GAMLSS.back2Accset2.sum.rds"))){
   mod.set2 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates,
                                mu.df, sigma.df, degree, distribution.fam, IDvar, quantile.vec, "Sex")
   saveRDS(mod.set2, paste0(interfileFolder, "/2-back/GAMLSS.back2Accset2.sum.rds"))

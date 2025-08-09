@@ -25,12 +25,11 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/FigureFolder"
 }else{
-  datapath <- 'V:/yunfu_data/EF_results'
-  demopath <- 'V:/rawdata/rawdata_results0616'
-  FigureFolder <- 'Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/Figures'
-  interfileFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/interfileFolder"
-  functionFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/Rcode_EFnorms/functions"
-  resultFolder <- "Z:/DMRI_network_development/EF_development/Crsen_survey_GD_YunFu/results"
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/select_parameter"
   
 }
 

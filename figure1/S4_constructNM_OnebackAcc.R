@@ -15,16 +15,12 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/FigureFolder"
 }else{
-  datapath <- '/Users/tanlirou/Documents/yunfu/EF_development/EF-Psy200'
-  FigureFolder <- '/Users/tanlirou/Documents/yunfu/Normativemodel/Figures'
-  interfileFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/interfileFolder"
-  functionFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/code"
-  resultFolder <- "/Users/tanlirou/Documents/yunfu/Normativemodel/step2"
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder/Normative_Model"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/Normative_Model"
 }
-
-# # set resolution
-# ds.resolution <- 12
-# element_num <- ds.resolution*(ds.resolution+1)/2
 
 # load data
 source(paste0(functionFolder, "/Construct_gamlss_set_new.R"))
@@ -40,8 +36,8 @@ index_set1_b <- unlist(LAPPLY)
 back1_data.set1 <- back1_data[index_set1_b,]
 back1_data.set2 <- back1_data %>% filter(!(row_number() %in% index_set1_b))#Subtract set1 from back1_data
 ## 2nd, construct models
-back1_data.set1 <- back1_data.set1 %>% select(c("Age_year", "Sex", "School","ID","Oneback_acc")) %>% drop_na()
-back1_data.set2 <- back1_data.set2 %>% select(c("Age_year", "Sex", "School","ID","Oneback_acc")) %>% drop_na()
+back1_data.set1 <- back1_data.set1 %>% select(c("Age_year", "Sex", "School", "ID", "Oneback_acc")) %>% drop_na()
+back1_data.set2 <- back1_data.set2 %>% select(c("Age_year", "Sex", "School", "ID", "Oneback_acc")) %>% drop_na()
 back1_data.set1$Sex <- as.factor(back1_data.set1$Sex)
 back1_data.set2$Sex <- as.factor(back1_data.set2$Sex)
 ### set1
@@ -58,8 +54,8 @@ covariates <- "Sex"
 stratify <- "Sex"
 quantile.vec <- c(0.01,0.025, 0.05, 0.25, 0.5, 0.75, 0.95,0.975, 0.99)
 
-if (str_detect(wd, "cuizaixu_lab")){
-  mod.set1 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify,randomvar=NA)
+if (!file.exists(paste0(interfileFolder, "/1-back/GAMLSS.back1Accset1.sum.rds"))){
+  mod.set1 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam, IDvar, quantile.vec, stratify, randomvar=NA)
   saveRDS(mod.set1, paste0(interfileFolder, "/1-back/GAMLSS.back1Accset1.sum.rds"))
 }else{
   mod.set1 <- readRDS(paste0(interfileFolder, "/1-back/GAMLSS.back1Accset1.sum.rds"))
@@ -97,7 +93,7 @@ saveRDS(deviation.set2.df, paste0(interfileFolder, "/1-back/EF_back1Acc.set2_dev
 
 # set2
 dataname <- "back1_data.set2"
-if (str_detect(wd, "cuizaixu_lab")){
+if (!file.exists(paste0(interfileFolder, "/1-back/GAMLSS.back1Accset2.sum.rds"))){
   mod.set2 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify,randomvar=NA)
   saveRDS(mod.set2, paste0(interfileFolder, "/1-back/GAMLSS.back1Accset2.sum.rds"))
 }else{

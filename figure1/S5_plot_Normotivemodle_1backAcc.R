@@ -18,21 +18,22 @@ if (str_detect(wd, "cuizaixu_lab")){
   functionFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/Rcode_EFnorms/functions"
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/results_Acc"
 }else{
-  datapath <- '/Users/tanlirou/Documents/YF_EF_psy/EF_psy/interfileFolder/1-back'
-  FigureFolder <- '/Users/tanlirou/Documents/YF_EF_psy/EF_psy/figureFolder/1-back'
-  interfileFolder <- "/Users/tanlirou/Documents/YF_EF_psy/EF_psy/interfileFolder/1-back"
-  functionFolder <- "/Users/tanlirou/Documents/YF_EF_psy/EF_psy/code/functions"
-  resultFolder <- "/Users/tanlirou/Documents/YF_EF_psy/EF_psy/figureFolder/1-back"
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder/Normative_Model"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/Normative_Model"
 }
-sum1backAcc_deviation <- readRDS(paste0(interfileFolder,"/back1Acc.deviations.rds"))
-mod1backAcc.set1.sum <- readRDS(paste0(interfileFolder, "/GAMLSS.back1Accset1.sum.rds"))
-mod1backAcc.set2.sum <- readRDS(paste0(interfileFolder, "/GAMLSS.back1Accset2.sum.rds"))
-back1Acc_data1 <- read_csv(paste0(interfileFolder, "/back1Acc.data1.csv"))
-back1Acc_data2 <- read_csv(paste0(interfileFolder, "/back1Acc.data2.csv"))
-derivative_back1 <- read_csv(paste0(interfileFolder, "/derivative_summary_1back.csv"))
+
+taskname <- "1-back"
+sum1backAcc_deviation <- readRDS(file.path(interfileFolder, taskname, "back1Acc.deviations.rds"))
+mod1backAcc.set1.sum <- readRDS(file.path(interfileFolder, taskname, "GAMLSS.back1Accset1.sum.rds"))
+mod1backAcc.set2.sum <- readRDS(file.path(interfileFolder, taskname, "GAMLSS.back1Accset2.sum.rds"))
+back1Acc_data1 <- read_csv(file.path(interfileFolder, taskname, "back1Acc.data1.csv"))
+back1Acc_data2 <- read_csv(file.path(interfileFolder, taskname, "back1Acc.data2.csv"))
+derivative_back1 <- read_csv(file.path(interfileFolder, taskname, "derivative_summary_1back.csv"))
 
 fillcolor <- c("#F5B7BF", "#91ACE0")
-# 绘制柱状图
 back1_plot <- ggplot(data = sum1backAcc_deviation, aes(x = Age_year, y = after_stat(count), fill = Sex)) +
   geom_histogram(binwidth = 1, color = "black", boundary = 11, position = "stack", linewidth = 0.5) + 
   labs(x = "Age (year)", y = NULL, title = paste0("1-back, N=", nrow(sum1backAcc_deviation))) +

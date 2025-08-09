@@ -1,7 +1,6 @@
-# 清空环境
+
 rm(list=ls())
 
-# 加载包
 library(tidyverse)
 library(mgcv)
 library(psych)
@@ -10,9 +9,8 @@ library(scales)
 library(tableone)
 library(openxlsx)
 library(ggplot2)
-library(patchwork)  # 用于图形拼合（备用方案）
+library(patchwork) 
 
-# 设置路径
 wd <- getwd()
 if (str_detect(wd, "cuizaixu_lab")){
   datapath <- '/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/interfileFolder'
@@ -21,20 +19,120 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results_corr"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results_corr"
 } else {
-  datapath <- '//Users/tanlirou/Documents/YF_EF_psy/EF_psy/correlation/data'
-  FigureFolder <- '/Users/tanlirou/Documents/YF_EF_psy/EF_psy/correlation_change/resutls250515'
-  interfileFolder <- "/Users/tanlirou/Documents/YF_EF_psy/EF_psy/correlation_change/resutls250515"
-  functionFolder <- "/Users/tanlirou/Documents/YF_EF_psy/EF_psy/correlation_change/functions"
-  resultFolder <- "/Users/tanlirou/Documents/YF_EF_psy/EF_psy/correlation_change/results250515"
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder/Normative_Model"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/Normative_Model"
 }
 
-# 加载自定义函数
 source(paste0(functionFolder, "/gamcog_withsmoothvar_deviation.R"))
 
 #head(switch_data)
-GNGd_data <- read_rds(paste0(datapath, '/GNGd_prime.deviations.rds'))
-back1_data <- read_rds(paste0(datapath, '/back1Acc.deviations.rds'))
-back2_data <- read_rds(paste0(datapath, '/back2Acc.deviations.rds'))
+GNGd_data <- read_rds(file.path(interfileFolder, "GNGd_prime", 'GNGd_prime.deviations.rds'))
+back1_data <- read_rds(file.path(interfileFolder, "1-back", 'back1Acc.deviations.rds'))
+back2_data <- read_rds(file.path(interfileFolder, "2-back", 'back2Acc.deviations.rds'))
+
+print(paste0(nrow(GNGd_data)," ", nrow(back1_data)," ", nrow(back2_data)))
+
+GNGd_data <- GNGd_data %>%
+  filter(
+    d_prime_deviationZ > (mean(d_prime_deviationZ) - 3 * sd(d_prime_deviationZ)),
+    d_prime_deviationZ < (mean(d_prime_deviationZ) + 3 * sd(d_prime_deviationZ))
+  )
+back1_data <- back1_data %>%
+  filter(
+    Oneback_acc_deviationZ > (mean(Oneback_acc_deviationZ) - 3 * sd(Oneback_acc_deviationZ)),
+    Oneback_acc_deviationZ < (mean(Oneback_acc_deviationZ) + 3 * sd(Oneback_acc_deviationZ))
+  )
+back2_data <- back2_data %>%
+  filter(
+    Twoback_acc_deviationZ > (mean(Twoback_acc_deviationZ) - 3 * sd(Twoback_acc_deviationZ)),
+    Twoback_acc_deviationZ < (mean(Twoback_acc_deviationZ) + 3 * sd(Twoback_acc_deviationZ))
+  )
+
+print(paste0(nrow(GNGd_data)," ", nrow(back1_data)," ", nrow(back2_data)))
+
+psyc_variables_continous <- c("SDQ_PB_sum", "SDQ_H_sum", "SDQ_CP_sum", "SDQ_PP_sum", "SDQ_ES_sum")
+psyc_stats <- data.frame(
+  variable = character(),
+  original_n = numeric(),
+  filtered_n = numeric(),
+  removed_n = numeric(),
+  stringsAsFactors = FALSE
+)
+
+for (psyc_item in psyc_variables_continous){
+  if(psyc_item %in% names(GNGd_data)) {
+    original_n <- nrow(GNGd_data)
+    mean_val <- mean(GNGd_data[[psyc_item]], na.rm = TRUE)
+    sd_val <- sd(GNGd_data[[psyc_item]], na.rm = TRUE)
+    
+    GNGd_data_filtered <- GNGd_data %>%
+      filter(
+        !!sym(psyc_item) > (mean_val - 3 * sd_val),
+        !!sym(psyc_item) < (mean_val + 3 * sd_val)
+      )
+    
+    filtered_n <- nrow(GNGd_data_filtered)
+    removed_n <- original_n - filtered_n
+    
+    psyc_stats <- rbind(psyc_stats, data.frame(
+      variable = paste0(psyc_item, "_GNGd"),
+      original_n = original_n,
+      filtered_n = filtered_n,
+      removed_n = removed_n,
+      stringsAsFactors = FALSE
+    ))
+  }
+  
+  if(psyc_item %in% names(back1_data)) {
+    original_n <- nrow(back1_data)
+    mean_val <- mean(back1_data[[psyc_item]], na.rm = TRUE)
+    sd_val <- sd(back1_data[[psyc_item]], na.rm = TRUE)
+    
+    back1_data_filtered <- back1_data %>%
+      filter(
+        !!sym(psyc_item) > (mean_val - 3 * sd_val),
+        !!sym(psyc_item) < (mean_val + 3 * sd_val)
+      )
+    
+    filtered_n <- nrow(back1_data_filtered)
+    removed_n <- original_n - filtered_n
+    
+    psyc_stats <- rbind(psyc_stats, data.frame(
+      variable = paste0(psyc_item, "_back1"),
+      original_n = original_n,
+      filtered_n = filtered_n,
+      removed_n = removed_n,
+      stringsAsFactors = FALSE
+    ))
+  }
+  
+  if(psyc_item %in% names(back2_data)) {
+    original_n <- nrow(back2_data)
+    mean_val <- mean(back2_data[[psyc_item]], na.rm = TRUE)
+    sd_val <- sd(back2_data[[psyc_item]], na.rm = TRUE)
+    
+    back2_data_filtered <- back2_data %>%
+      filter(
+        !!sym(psyc_item) > (mean_val - 3 * sd_val),
+        !!sym(psyc_item) < (mean_val + 3 * sd_val)
+      )
+    
+    filtered_n <- nrow(back2_data_filtered)
+    removed_n <- original_n - filtered_n
+    
+    psyc_stats <- rbind(psyc_stats, data.frame(
+      variable = paste0(psyc_item, "_back2"),
+      original_n = original_n,
+      filtered_n = filtered_n,
+      removed_n = removed_n,
+      stringsAsFactors = FALSE
+    ))
+  }
+}
+
 
 
 ## 1) set up variables

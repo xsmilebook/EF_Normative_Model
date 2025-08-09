@@ -20,7 +20,6 @@ if (str_detect(wd, "cuizaixu_lab")){
   interfileFolder <- "D:/datasets/yunfu/interfile_folder"
   functionFolder <- "D:/code/EF_Normative_Model/functions"
   resultFolder <- "D:/datasets/yunfu/results/gamlss/select_parameter"
-  
 }
 
 # load data

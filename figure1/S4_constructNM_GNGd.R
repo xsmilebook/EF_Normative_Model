@@ -15,16 +15,12 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/results"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/FigureFolder"
 }else{
-  datapath <- '/Users/tanlirou/Documents/EF_yunfu/combinetable/combined_questionnaire'
-  FigureFolder <- '/Users/tanlirou/Documents/EF_yunfu/figure'
-  interfileFolder <- "/Users/tanlirou/Documents/EF_yunfu/results/mmmm"
-  functionFolder <- "/Users/tanlirou/Documents/EF_yunfu/code/functions"
-  resultFolder <- "/Users/tanlirou/Documents/EF_yunfu/results"
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  FigureFolder <- 'D:/datasets/yunfu/figures/fig1'
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder/Normative_Model"
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  resultFolder <- "D:/datasets/yunfu/results/gamlss/Normative_Model"
 }
-
-# # set resolution
-# ds.resolution <- 12
-# element_num <- ds.resolution*(ds.resolution+1)/2
 
 # load data
 source(paste0(functionFolder, "/Construct_gamlss_set_new.R"))
@@ -58,19 +54,20 @@ covariates <- "Sex"
 stratify <- "Sex"
 quantile.vec <- c(0.01,0.025, 0.05, 0.25, 0.5, 0.75, 0.95,0.975, 0.99)
 
-if (str_detect(wd, "cuizaixu_lab")){
+if(!file.exists(paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset1.sum.rds"))){
   mod.set1 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify,randomvar=NA)
-  saveRDS(mod.set1, paste0(interfileFolder, "/Gonogo/GAMLSS.GNGd_primeset1.sum.rds"))
+  saveRDS(mod.set1, paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset1.sum.rds"))
 }else{
-  mod.set1 <- readRDS(paste0(interfileFolder, "/Gonogo/GAMLSS.GNGd_primeset1.sum.rds"))
+  mod.set1 <- readRDS(paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset1.sum.rds"))
 }
+
 
 
 # performance
 modelperformance.set1 <- mod.set1$performance.tb
 print(paste(sum(modelperformance.set1$converged), "models converged.")) 
 # replicate previous results
-#SCrankcorr(modelperformance.set1, "partialRsq", ds.resolution)
+# SCrankcorr(modelperformance.set1, "partialRsq", ds.resolution)
 # ds.resolution Interest.var r.spearman   p.spearman
 # 1            12   partialRsq -0.4724948 1.255304e-05
 
@@ -93,16 +90,17 @@ deviation.set2.df[[paste0(dependentvar, "_sigma")]] <- sigma_pred
 deviation.set2.df[[paste0(dependentvar, "_mu")]] <- mu_pred
 deviation.set2.df[[paste0(dependentvar, "_nu")]] <- nu_pred
 
-saveRDS(deviation.set2.df, paste0(interfileFolder, "/Gonogo/EF_GNGd_prime.set2_deviation.rds"))
+saveRDS(deviation.set2.df, paste0(interfileFolder, "/GNGd_prime/EF_GNGd_prime.set2_deviation.rds"))
 
 
 # set2
 dataname <- "GNG_data.set2"
-if (str_detect(wd, "cuizaixu_lab")){
+
+if(file.exists(paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset1.sum.rds"))){
   mod.set2 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify,randomvar=NA)
-  saveRDS(mod.set2, paste0(interfileFolder, "/Gonogo/GAMLSS.GNGd_primeset2.sum.rds"))
+  saveRDS(mod.set2, paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset2.sum.rds"))
 }else{
-  mod.set2 <- readRDS(paste0(interfileFolder, "/Gonogo/GAMLSS.GNGd_primeset2.sum.rds"))
+  mod.set2 <- readRDS(paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset2.sum.rds"))
 }
 
 # performance
@@ -127,7 +125,7 @@ deviation.set1.df[[paste0(dependentvar, "_sigma")]] <- sigma_pred
 deviation.set1.df[[paste0(dependentvar, "_mu")]] <- mu_pred
 deviation.set1.df[[paste0(dependentvar, "_nu")]] <- nu_pred
 
-saveRDS(deviation.set1.df, paste0(interfileFolder, "/Gonogo/EF_GNGd_prime.set1_deviation.rds"))
+saveRDS(deviation.set1.df, paste0(interfileFolder, "/GNGd_prime/EF_GNGd_prime.set1_deviation.rds"))
 
 ## 3rd. merge datasets
 # The deviations will be averaged across the two models.
@@ -147,7 +145,7 @@ GNGd_prime_deviation <- rbind(GNGd_prime_deviation.set1, GNGd_prime_deviation.se
 GNGd_prime_deviation <- merge(GNGd_prime_deviation, GNG_data, by="ID")
 
 # Save the result
-write.csv(GNG_data.set1, paste0(interfileFolder,"/Gonogo/GNGd_prime.data1.csv"))
-write.csv(GNG_data.set2, paste0(interfileFolder,"/Gonogo/GNGd_prime.data2.csv"))
-saveRDS(GNGd_prime_deviation, paste0(interfileFolder,"/Gonogo/GNGd_prime.deviations.rds"))
-write.csv(GNGd_prime_deviation, paste0(interfileFolder,"/Gonogo/GNGd_prime.deviations.csv"))
+write.csv(GNG_data.set1, paste0(interfileFolder,"/GNGd_prime/GNGd_prime.data1.csv"))
+write.csv(GNG_data.set2, paste0(interfileFolder,"/GNGd_prime/GNGd_prime.data2.csv"))
+saveRDS(GNGd_prime_deviation, paste0(interfileFolder,"/GNGd_prime/GNGd_prime.deviations.rds"))
+write.csv(GNGd_prime_deviation, paste0(interfileFolder,"/GNGd_prime/GNGd_prime.deviations.csv"))

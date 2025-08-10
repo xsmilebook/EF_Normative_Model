@@ -35,104 +35,127 @@ back2_data <- read_rds(file.path(interfileFolder, "2-back", 'back2Acc.deviations
 
 print(paste0(nrow(GNGd_data)," ", nrow(back1_data)," ", nrow(back2_data)))
 
+
+# GNGd 任务：将 d_prime_deviationZ 的离群值设为 NA
 GNGd_data <- GNGd_data %>%
-  filter(
-    d_prime_deviationZ > (mean(d_prime_deviationZ) - 3 * sd(d_prime_deviationZ)),
-    d_prime_deviationZ < (mean(d_prime_deviationZ) + 3 * sd(d_prime_deviationZ))
+  mutate(
+    d_prime_deviationZ = {
+      x <- d_prime_deviationZ
+      mean_x <- mean(x, na.rm = TRUE)
+      sd_x <- sd(x, na.rm = TRUE)
+      lower <- mean_x - 3 * sd_x
+      upper <- mean_x + 3 * sd_x
+      replace(x, x < lower | x > upper, NA)
+    }
   )
+
+# 1-back 任务：将 Oneback_acc_deviationZ 的离群值设为 NA
 back1_data <- back1_data %>%
-  filter(
-    Oneback_acc_deviationZ > (mean(Oneback_acc_deviationZ) - 3 * sd(Oneback_acc_deviationZ)),
-    Oneback_acc_deviationZ < (mean(Oneback_acc_deviationZ) + 3 * sd(Oneback_acc_deviationZ))
+  mutate(
+    Oneback_acc_deviationZ = {
+      x <- Oneback_acc_deviationZ
+      mean_x <- mean(x, na.rm = TRUE)
+      sd_x <- sd(x, na.rm = TRUE)
+      lower <- mean_x - 3 * sd_x
+      upper <- mean_x + 3 * sd_x
+      replace(x, x < lower | x > upper, NA)
+    }
   )
+
+# 2-back 任务：将 Twoback_acc_deviationZ 的离群值设为 NA
 back2_data <- back2_data %>%
-  filter(
-    Twoback_acc_deviationZ > (mean(Twoback_acc_deviationZ) - 3 * sd(Twoback_acc_deviationZ)),
-    Twoback_acc_deviationZ < (mean(Twoback_acc_deviationZ) + 3 * sd(Twoback_acc_deviationZ))
+  mutate(
+    Twoback_acc_deviationZ = {
+      x <- Twoback_acc_deviationZ
+      mean_x <- mean(x, na.rm = TRUE)
+      sd_x <- sd(x, na.rm = TRUE)
+      lower <- mean_x - 3 * sd_x
+      upper <- mean_x + 3 * sd_x
+      replace(x, x < lower | x > upper, NA)
+    }
   )
 
 print(paste0(nrow(GNGd_data)," ", nrow(back1_data)," ", nrow(back2_data)))
 
-psyc_variables_continous <- c("SDQ_PB_sum", "SDQ_H_sum", "SDQ_CP_sum", "SDQ_PP_sum", "SDQ_ES_sum")
-psyc_stats <- data.frame(
-  variable = character(),
-  original_n = numeric(),
-  filtered_n = numeric(),
-  removed_n = numeric(),
-  stringsAsFactors = FALSE
-)
 
-for (psyc_item in psyc_variables_continous){
-  if(psyc_item %in% names(GNGd_data)) {
-    original_n <- nrow(GNGd_data)
-    mean_val <- mean(GNGd_data[[psyc_item]], na.rm = TRUE)
-    sd_val <- sd(GNGd_data[[psyc_item]], na.rm = TRUE)
+
+
+# 定义函数：对数据进行标准化并清理离群值
+standardize_clean <- function(df, vars) {
+  # 初始化结果数据框，用于存储统计信息
+  stats <- data.frame(
+    variable = character(),
+    original_n = numeric(),       # 原始行数
+    non_na_n = numeric(),         # 非NA行数
+    after_filter_n = numeric(),   # 标准化后保留的行数
+    outlier_num = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  for (var in vars) {
+    # 提取原始向量
+    x <- df[[var]]
     
-    GNGd_data_filtered <- GNGd_data %>%
-      filter(
-        !!sym(psyc_item) > (mean_val - 3 * sd_val),
-        !!sym(psyc_item) < (mean_val + 3 * sd_val)
-      )
+    # 统计原始行数
+    original_n <- nrow(df)
     
-    filtered_n <- nrow(GNGd_data_filtered)
-    removed_n <- original_n - filtered_n
+    # 统计非NA行数
+    non_na_n <- sum(!is.na(x))
     
-    psyc_stats <- rbind(psyc_stats, data.frame(
-      variable = paste0(psyc_item, "_GNGd"),
+    # 计算均值和标准差（基于非NA值）
+    mu <- mean(x, na.rm = TRUE)
+    sd_val <- sd(x, na.rm = TRUE)
+    
+    # 筛选有效索引（满足 ±3σ 范围）
+    valid_index <- which(abs(df[[var]] - mu) <= 3 * sd_val)
+    
+    # 统计标准化后保留的行数
+    after_filter_n <- length(valid_index)
+    
+    # 将超出范围的值设为 NA
+    df[[var]][-valid_index] <- NA
+    outlier_num <- sum(is.na(df[[var]]))
+    # 创建 Z-score 变量名
+    z_varname <- paste0(var, "_z")
+    
+    # 初始化 Z-score 列为 NA
+    df[[z_varname]] <- NA
+    
+    # 对有效值进行标准化
+    if (after_filter_n > 0) {
+      df[[z_varname]][valid_index] <- scale(df[[var]][valid_index])
+    }
+    
+    # 添加统计信息到结果数据框
+    stats <- rbind(stats, data.frame(
+      variable = var,
       original_n = original_n,
-      filtered_n = filtered_n,
-      removed_n = removed_n,
+      non_na_n = non_na_n,
+      after_filter_n = after_filter_n,
+      outlier_num = outlier_num,
       stringsAsFactors = FALSE
     ))
   }
   
-  if(psyc_item %in% names(back1_data)) {
-    original_n <- nrow(back1_data)
-    mean_val <- mean(back1_data[[psyc_item]], na.rm = TRUE)
-    sd_val <- sd(back1_data[[psyc_item]], na.rm = TRUE)
-    
-    back1_data_filtered <- back1_data %>%
-      filter(
-        !!sym(psyc_item) > (mean_val - 3 * sd_val),
-        !!sym(psyc_item) < (mean_val + 3 * sd_val)
-      )
-    
-    filtered_n <- nrow(back1_data_filtered)
-    removed_n <- original_n - filtered_n
-    
-    psyc_stats <- rbind(psyc_stats, data.frame(
-      variable = paste0(psyc_item, "_back1"),
-      original_n = original_n,
-      filtered_n = filtered_n,
-      removed_n = removed_n,
-      stringsAsFactors = FALSE
-    ))
-  }
-  
-  if(psyc_item %in% names(back2_data)) {
-    original_n <- nrow(back2_data)
-    mean_val <- mean(back2_data[[psyc_item]], na.rm = TRUE)
-    sd_val <- sd(back2_data[[psyc_item]], na.rm = TRUE)
-    
-    back2_data_filtered <- back2_data %>%
-      filter(
-        !!sym(psyc_item) > (mean_val - 3 * sd_val),
-        !!sym(psyc_item) < (mean_val + 3 * sd_val)
-      )
-    
-    filtered_n <- nrow(back2_data_filtered)
-    removed_n <- original_n - filtered_n
-    
-    psyc_stats <- rbind(psyc_stats, data.frame(
-      variable = paste0(psyc_item, "_back2"),
-      original_n = original_n,
-      filtered_n = filtered_n,
-      removed_n = removed_n,
-      stringsAsFactors = FALSE
-    ))
-  }
+  # 返回处理后的数据框和统计信息
+  return(list(data = df, stats = stats))
 }
 
+# 心理变量列表
+original_vars <- c("SDQ_PB_sum", "SDQ_H_sum", "SDQ_CP_sum", "SDQ_PP_sum", "SDQ_ES_sum")
+
+# 应用函数到每个任务数据集
+GNGd_result <- standardize_clean(GNGd_data, original_vars)
+back1_result <- standardize_clean(back1_data, original_vars)
+back2_result <- standardize_clean(back2_data, original_vars)
+
+# 查看统计结果
+print(GNGd_result$stats)
+print(back1_result$stats)
+print(back2_result$stats)
+
+# 更新变量名（包含 _z 后缀）
+psyc_variables_continuous <- paste0(original_vars, "_z")
 
 
 ## 1) set up variables

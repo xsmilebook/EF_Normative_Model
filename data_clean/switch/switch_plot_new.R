@@ -12,82 +12,52 @@ switch <- switch %>%
 
 # --- 3. 数据汇总 ---
 # 包含所有需要绘制的原始指标和计算出的指标
+# --- 3. 数据汇总 ---
+# 只计算需要的指标，保持原始变量名不变
 switch_ana <- switch %>%
+  mutate(Age_year = round(Age_year, 0)) %>%
   group_by(Age_year) %>%
   summarise(
-    # --- 原始指标 (Mean, SD, SE) ---
+    # --- 原始指标：计算均值（保持原始变量名）---
     Mean_RT = mean(Mean_RT, na.rm = TRUE),
-    sd_Mean_RT = sd(Mean_RT, na.rm = TRUE),
-    se_Mean_RT = sd_Mean_RT / sqrt(n()),
     Switch_acc = mean(Switch_acc, na.rm = TRUE),
-    sd_Switch_acc = sd(Switch_acc, na.rm = TRUE),
-    se_Switch_acc = sd_Switch_acc / sqrt(n()),
     Repeat_Trials_Acc = mean(Repeat_Trials_Acc, na.rm = TRUE),
-    sd_Repeat_Trials_Acc = sd(Repeat_Trials_Acc, na.rm = TRUE),
-    se_Repeat_Trials_Acc = sd_Repeat_Trials_Acc / sqrt(n()),
     Repeat_Trials_RT = mean(Repeat_Trials_RT, na.rm = TRUE),
-    sd_Repeat_Trials_RT = sd(Repeat_Trials_RT, na.rm = TRUE),
-    se_Repeat_Trials_RT = sd_Repeat_Trials_RT / sqrt(n()),
     Switch_Trials_Acc = mean(Switch_Trials_Acc, na.rm = TRUE),
-    sd_Switch_Trials_Acc = sd(Switch_Trials_Acc, na.rm = TRUE),
-    se_Switch_Trials_Acc = sd_Switch_Trials_Acc / sqrt(n()),
     Switch_Trials_RT = mean(Switch_Trials_RT, na.rm = TRUE),
-    sd_Switch_Trials_RT = sd(Switch_Trials_RT, na.rm = TRUE),
-    se_Switch_Trials_RT = sd_Switch_Trials_RT / sqrt(n()),
     Pure_trials_acc = mean(Pure_trials_acc, na.rm = TRUE),
-    sd_Pure_trials_acc = sd(Pure_trials_acc, na.rm = TRUE),
-    se_Pure_trials_acc = sd_Pure_trials_acc / sqrt(n()),
     Pure_RT = mean(Pure_RT, na.rm = TRUE),
-    sd_Pure_RT = sd(Pure_RT, na.rm = TRUE),
-    se_Pure_RT = sd_Pure_RT / sqrt(n()),
     B_acc = mean(B_acc, na.rm = TRUE),
-    sd_B_acc = sd(B_acc, na.rm = TRUE),
-    se_B_acc = sd_B_acc / sqrt(n()),
     B_rt = mean(B_rt, na.rm = TRUE),
-    sd_B_rt = sd(B_rt, na.rm = TRUE),
-    se_B_rt = sd_B_rt / sqrt(n()),
     M_acc = mean(M_acc, na.rm = TRUE),
-    sd_M_acc = sd(M_acc, na.rm = TRUE),
-    se_M_acc = sd_M_acc / sqrt(n()),
     M_trials_RT = mean(M_trials_RT, na.rm = TRUE),
-    sd_M_trials_RT = sd(M_trials_RT, na.rm = TRUE),
-    se_M_trials_RT = sd_M_trials_RT / sqrt(n()),
     P_acc = mean(P_acc, na.rm = TRUE),
-    sd_P_acc = sd(P_acc, na.rm = TRUE),
-    se_P_acc = sd_P_acc / sqrt(n()),
     P_trials_RT = mean(P_trials_RT, na.rm = TRUE),
-    sd_P_trials_RT = sd(P_trials_RT, na.rm = TRUE),
-    se_P_trials_RT = sd_P_trials_RT / sqrt(n()),
-    # --- 计算出的 Switch Cost 指标 (Mean, SD, SE) ---
-    SC_SR_acc = mean(Repeat_Trials_Acc - Switch_Trials_Acc, na.rm = TRUE),
-    sd_SC_SR_acc = sd(Repeat_Trials_Acc - Switch_Trials_Acc, na.rm = TRUE),
-    se_SC_SR_acc = sd_SC_SR_acc / sqrt(n()),
-    SC_SR_rt = mean(Repeat_Trials_RT - Switch_Trials_RT, na.rm = TRUE),
-    sd_SC_SR_rt = sd(Repeat_Trials_RT - Switch_Trials_RT, na.rm = TRUE),
-    se_SC_SR_rt = sd_SC_SR_rt / sqrt(n()),
-    SC_SP_acc = mean(Pure_trials_acc - Switch_Trials_Acc, na.rm = TRUE),
-    sd_SC_SP_acc = sd(Pure_trials_acc - Switch_Trials_Acc, na.rm = TRUE),
-    se_SC_SP_acc = sd_SC_SP_acc / sqrt(n()),
-    SC_SP_rt = mean(Pure_RT - Switch_Trials_RT, na.rm = TRUE),
-    sd_SC_SP_rt = sd(Pure_RT - Switch_Trials_RT, na.rm = TRUE),
-    se_SC_SP_rt = sd_SC_SP_rt / sqrt(n()),
-    SC_BP_acc = mean(Pure_trials_acc - B_acc, na.rm = TRUE),
-    sd_SC_BP_acc = sd(Pure_trials_acc - B_acc, na.rm = TRUE),
-    se_SC_BP_acc = sd_SC_BP_acc / sqrt(n()),
-    SC_BP_rt = mean(Pure_RT - B_rt, na.rm = TRUE),
-    sd_SC_BP_rt = sd(Pure_RT - B_rt, na.rm = TRUE),
-    se_SC_BP_rt = sd_SC_BP_rt / sqrt(n()),
-    # --- 计算出的 IES 指标 (Mean) ---
-    IES_all = mean(Mean_RT / Switch_acc, na.rm = TRUE),
-    IES_pure = mean(Pure_RT / Pure_trials_acc, na.rm = TRUE),
-    IES_mix = mean(B_rt / B_acc, na.rm = TRUE),
-    IES_re = mean(Repeat_Trials_RT / Repeat_Trials_Acc, na.rm = TRUE),
-    IES_switch = mean(Switch_Trials_RT / Switch_Trials_Acc, na.rm = TRUE),
-    # --- 计算出的 Proportion 指标 (Mean) ---
-    SC_SR_rt_proportion = mean((Repeat_Trials_RT - Switch_Trials_RT) / Repeat_Trials_RT, na.rm = TRUE),
-    SC_SR_acc_proportion = mean((Repeat_Trials_Acc - Switch_Trials_Acc) / Repeat_Trials_Acc, na.rm = TRUE),
-    SC_SP_rt_proportion = mean((Pure_RT - Switch_Trials_RT) / Pure_RT, na.rm = TRUE),
-    SC_SP_acc_proportion = mean((Pure_trials_acc - Switch_Trials_Acc) / Pure_trials_acc, na.rm = TRUE),
+    
+    # Switch Cost 指标
+    SC_SR_acc = mean(SC_SR_acc, na.rm = TRUE),
+    SC_SR_rt = mean(SC_SR_rt, na.rm = TRUE),
+    SC_SP_acc = mean(SC_SP_acc, na.rm = TRUE),
+    SC_SP_rt = mean(SC_SP_rt, na.rm = TRUE),
+    SC_BP_acc = mean(SC_BP_acc, na.rm = TRUE),
+    SC_BP_rt = mean(SC_BP_rt, na.rm = TRUE),
+    SC_M_SR_acc = mean(SC_M_SR_acc, na.rm = TRUE),
+    SC_P_SR_acc = mean(SC_P_SR_acc, na.rm = TRUE),
+    SC_RP_acc = mean(SC_RP_acc, na.rm = TRUE),
+    
+    # IES 指标
+    IES_all = mean(IES_all, na.rm = TRUE),
+    IES_pure = mean(IES_pure, na.rm = TRUE),
+    IES_mix = mean(IES_mix, na.rm = TRUE),
+    IES_re = mean(IES_re, na.rm = TRUE),
+    IES_switch = mean(IES_switch, na.rm = TRUE),
+    
+    # Proportion 指标
+    SC_SR_rt_proportion = mean(SC_SR_rt_proportion, na.rm = TRUE),
+    SC_SR_acc_proportion = mean(SC_SR_acc_proportion, na.rm = TRUE),
+    SC_SP_rt_proportion = mean(SC_SP_rt_proportion, na.rm = TRUE),
+    SC_SP_acc_proportion = mean(SC_SP_acc_proportion, na.rm = TRUE),
+    
     .groups = 'drop'
   )
 
@@ -116,6 +86,9 @@ plot_info <- tibble::tribble(
   "SC_SR_rt", "SC: Switch - Repeat RT", "RT Difference (ms)",
   "SC_SP_rt", "SC: Switch - Pure RT", "RT Difference (ms)",
   "SC_BP_rt", "SC: Mix - Pure RT", "RT Difference (ms)",
+  "SC_M_SR_acc", "SC(M task): Switch - Repeat acc", "Accuracy Difference",
+  "SC_P_SR_acc", "SC(P task): Switch - Repeat acc", "Accuracy Difference",
+  "SC_RP_acc", "SC: Repeat - Pure acc", "Accuracy Difference",
   # --- IES 指标 ---
   "IES_all", "IES: Overall", "IES (RT/Acc)",
   "IES_pure", "IES: Pure Trials", "IES (RT/Acc)",

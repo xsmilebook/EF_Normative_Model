@@ -79,10 +79,7 @@ print(paste0(nrow(GNGd_data)," ", nrow(back1_data)," ", nrow(back2_data)))
 
 
 
-
-# 定义函数：对数据进行标准化并清理离群值
 standardize_clean <- function(df, vars) {
-  # 初始化结果数据框，用于存储统计信息
   stats <- data.frame(
     variable = character(),
     original_n = numeric(),       # 原始行数
@@ -93,40 +90,23 @@ standardize_clean <- function(df, vars) {
   )
   
   for (var in vars) {
-    # 提取原始向量
     x <- df[[var]]
-    
-    # 统计原始行数
     original_n <- nrow(df)
-    
-    # 统计非NA行数
     non_na_n <- sum(!is.na(x))
-    
-    # 计算均值和标准差（基于非NA值）
     mu <- mean(x, na.rm = TRUE)
     sd_val <- sd(x, na.rm = TRUE)
-    
-    # 筛选有效索引（满足 ±3σ 范围）
     valid_index <- which(abs(df[[var]] - mu) <= 3 * sd_val)
     
-    # 统计标准化后保留的行数
     after_filter_n <- length(valid_index)
-    
-    # 将超出范围的值设为 NA
     df[[var]][-valid_index] <- NA
     outlier_num <- sum(is.na(df[[var]]))
-    # 创建 Z-score 变量名
     z_varname <- paste0(var, "_z")
     
-    # 初始化 Z-score 列为 NA
     df[[z_varname]] <- NA
-    
-    # 对有效值进行标准化
     if (after_filter_n > 0) {
       df[[z_varname]][valid_index] <- scale(df[[var]][valid_index])
     }
     
-    # 添加统计信息到结果数据框
     stats <- rbind(stats, data.frame(
       variable = var,
       original_n = original_n,
@@ -137,14 +117,11 @@ standardize_clean <- function(df, vars) {
     ))
   }
   
-  # 返回处理后的数据框和统计信息
   return(list(data = df, stats = stats))
 }
 
-# 心理变量列表
 original_vars <- c("SDQ_PB_sum", "SDQ_H_sum", "SDQ_CP_sum", "SDQ_PP_sum", "SDQ_ES_sum")
 
-# 应用函数到每个任务数据集
 GNGd_result <- standardize_clean(GNGd_data, original_vars)
 back1_result <- standardize_clean(back1_data, original_vars)
 back2_result <- standardize_clean(back2_data, original_vars)

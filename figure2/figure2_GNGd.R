@@ -13,11 +13,12 @@ library(ggplot2)
 library(parallel)
 
 # 3. receive parameters from command
-args <- commandArgs(trailingOnly = TRUE)
-if (length(args) == 0) {
-  stop("error: psychological variable is lost!", call. = FALSE)
-}
-psyvar_arg <- args[1]
+# args <- commandArgs(trailingOnly = TRUE)
+# if (length(args) == 0) {
+#   stop("error: psychological variable is lost!", call. = FALSE)
+# }
+# psyvar_arg <- args[1]
+psyvar_arg <- "SDQ_PB_sum_z"
 
 # 4. setting path
 wd <- getwd()

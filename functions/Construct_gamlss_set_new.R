@@ -3,7 +3,7 @@ library(tidyverse)
 library(gamlss)
 ## Function 1. construct GAMLSS & return model objects and performance.
 ## This function is used to fit a GAMLSS containing a smooth term.
-construct_gamlss <- function(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify=NULL,randomvar=NA){
+construct_gamlss <- function(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify=NULL, randomvar=NA){
   
   # get data
   gam.data <- get(dataname)

@@ -13,12 +13,13 @@ library(ggplot2)
 library(parallel)
 
 # 3. receive parameters from command
-args <- commandArgs(trailingOnly = TRUE)
-if (length(args) == 0) {
-  stop("error: psychological variable is lost!", call. = FALSE)
-}
-psyvar_arg <- args[1]
-
+# args <- commandArgs(trailingOnly = TRUE)
+# if (length(args) == 0) {
+#   stop("error: psychological variable is lost!", call. = FALSE)
+# }
+# psyvar_arg <- args[1]
+psyvar_arg <- "SDQ_H_sum_z"
+Time_id <- "Time_0"
 # 4. setting path
 wd <- getwd()
 if (str_detect(wd, "cuizaixu_lab")){
@@ -28,10 +29,11 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/results/EF_psy"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/figures/fig2"
 } else {
-  datapath <- '/Users/tanlirou/Documents/YF_EF_psy/EF_psy/correlation/data'
-  functionFolder <- "/Users/tanlirou/Documents/YF_EF_psy/EF_psy/code_pure_202507/functions"
-  resultFolder <- "/Users/tanlirou/Documents/YF_EF_psy/EF_psy/code_pure_202507/results/Figure2_corr_delete_Z/individual_results"
-  FigureFolder <- '/Users/tanlirou/Documents/YF_EF_psy/EF_psy/code_pure_202507/results/Figure2_corr_delete_Z/individual_figures'
+  datapath <- 'D:/datasets/yunfu/raw_data'
+  functionFolder <- "D:/code/EF_Normative_Model/functions"
+  interfileFolder <- "D:/datasets/yunfu/interfile_folder/temp"
+  resultFolder <- "D:/datasets/yunfu/results/EF_psy"
+  FigureFolder <- 'D:/datasets/yunfu/results/figures/fig2'
 }
 
 dir.create(resultFolder, showWarnings = FALSE, recursive = TRUE)
@@ -41,7 +43,7 @@ source(file.path(functionFolder, "gamcog_withsmoothvar_deviation.R"))
 
 # 5. load data
 # GNGd_data <- read_rds(paste0(datapath, '/Gonogo/GNGd_prime.deviations.rds'))
-back1_data <- read_rds(paste0(datapath, '/1-back/back1Acc.deviations.rds'))
+back1_data <- read_rds(paste0(interfileFolder, '/back1Acc.deviations.rds'))
 
 
 # 6. setting variables
@@ -117,7 +119,7 @@ if (!is.null(result.full$simulation)) {
       n_sim = result.full$simulation$n_sim
     )
   )
-  output_rds_path <- paste0(resultFolder, "/anova_simulation_", dataname0, psyvar_arg, ".rds")
+  output_rds_path <- paste0(resultFolder, "/anova_simulation_", dataname0, psyvar_arg, Time_id, ".rds")
   saveRDS(sim_result_single, output_rds_path)
   cat(paste("simulated results have been saved to:", output_rds_path, "\n"))
   
@@ -126,7 +128,7 @@ if (!is.null(result.full$simulation)) {
   dir.create(bootstrap_folder, showWarnings = FALSE, recursive = TRUE)
   
   clean_psyvar <- gsub("[/:*?\"<>|]", "_", psyvar_arg)
-  file_path <- paste0(bootstrap_folder, "/sim_dist_oneback_", clean_psyvar, ".png")
+  file_path <- paste0(bootstrap_folder, "/sim_dist_oneback_", clean_psyvar, Time_id, ".png")
   
   png(filename = file_path, width = 800, height = 600, res = 150)
   hist_data <- sim_result_single$simulation$simulated_stats

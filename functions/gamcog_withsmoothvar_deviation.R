@@ -223,8 +223,7 @@ gam.fit.Independent.var <- function(dependentvar, dataname, smoothvar, interest.
   # Full versus reduced model anova p-value
   if (stats_only){
     # Perform ANOVA simulation
-    anova_results <- anovaPB_ext(gam.model.null, gam.model, n.sim = 10000, test = 'Chisq')
-    # anova.pvalues <- anova_results$`Pr(>Chi)`[2]  # Get 10000 p-values
+    anova_results <- anovaPB_ext(gam.model.null, gam.model, n.sim = 1000, test = 'Chisq')
     anova.pvalues <- anova_results$`Pr(>Chi)`[2]  # Get 10000 p-values
     simulated_stats <- attr(anova_results, "simulated_stats")
     observed_stat <- attr(anova_results, "observed_stat")

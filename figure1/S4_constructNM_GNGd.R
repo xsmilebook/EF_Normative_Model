@@ -34,12 +34,14 @@ SPLIT <- split(1:NROW(GNG_data), stratify.var)
 LAPPLY <- lapply(SPLIT,function(X){sample(x=X,size=length(X)*1/2,replace=F)})
 index_set1_b <- unlist(LAPPLY)
 GNG_data.set1 <- GNG_data[index_set1_b,]
-GNG_data.set2 <- GNG_data %>% filter(!(row_number() %in% index_set1_b))#Subtract set1 from GNG_data
+GNG_data.set2 <- GNG_data %>% filter(!(row_number() %in% index_set1_b))
+
 ## 2nd, construct models
 GNG_data.set1 <- GNG_data.set1 %>% select(c("Age_year", "Sex", "School","ID","d_prime")) %>% drop_na()
 GNG_data.set2 <- GNG_data.set2 %>% select(c("Age_year", "Sex", "School","ID","d_prime")) %>% drop_na()
 GNG_data.set1$Sex <- as.factor(GNG_data.set1$Sex)
 GNG_data.set2$Sex <- as.factor(GNG_data.set2$Sex)
+
 ### set1
 dataname <- "GNG_data.set1"
 GNG_data.set1 <- as.data.frame(GNG_data.set1)
@@ -55,12 +57,11 @@ stratify <- "Sex"
 quantile.vec <- c(0.01,0.025, 0.05, 0.25, 0.5, 0.75, 0.95,0.975, 0.99)
 
 if(!file.exists(paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset1.sum.rds"))){
-  mod.set1 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify,randomvar=NA)
+  mod.set1 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify, randomvar=NA)
   saveRDS(mod.set1, paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset1.sum.rds"))
 }else{
   mod.set1 <- readRDS(paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset1.sum.rds"))
 }
-
 
 
 # performance
@@ -78,17 +79,19 @@ mod.tmp <- mod.set1$mod.tmp
 mu_pred <- predict(mod.tmp, newdata = GNG_data.set2, what = "mu", type = "response")
 sigma_pred <- predict(mod.tmp, newdata = GNG_data.set2, what = "sigma", type = "response")
 nu_pred <- predict(mod.tmp, newdata = GNG_data.set2, what = "nu", type = "response")
+tau_pred <- predict(mod.tmp, newdata = GNG_data.set2, what = "tau", type = "response")
 
 
 dependentvar <- "d_prime"
 deviation.set2.df <- data.frame(ID=GNG_data.set2$ID)
 observation <- GNG_data.set2[[dependentvar]]
-centile <- pSEP3(observation, mu = mu_pred, sigma = sigma_pred, nu = nu_pred)
+centile <- pSEP3(observation, mu = mu_pred, sigma = sigma_pred, nu = nu_pred, tau = tau_pred)
 deviation.set2.df[[paste0(dependentvar, "_centile")]] <- centile
 deviation.set2.df[[paste0(dependentvar, "_deviationZ")]] <- qnorm(centile)
 deviation.set2.df[[paste0(dependentvar, "_sigma")]] <- sigma_pred
 deviation.set2.df[[paste0(dependentvar, "_mu")]] <- mu_pred
 deviation.set2.df[[paste0(dependentvar, "_nu")]] <- nu_pred
+deviation.set2.df[[paste0(dependentvar, "_tau")]] <- tau_pred
 
 saveRDS(deviation.set2.df, paste0(interfileFolder, "/GNGd_prime/EF_GNGd_prime.set2_deviation.rds"))
 
@@ -97,7 +100,7 @@ saveRDS(deviation.set2.df, paste0(interfileFolder, "/GNGd_prime/EF_GNGd_prime.se
 dataname <- "GNG_data.set2"
 
 if(file.exists(paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset1.sum.rds"))){
-  mod.set2 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify,randomvar=NA)
+  mod.set2 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify, randomvar=NA)
   saveRDS(mod.set2, paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset2.sum.rds"))
 }else{
   mod.set2 <- readRDS(paste0(interfileFolder, "/GNGd_prime/GAMLSS.GNGd_primeset2.sum.rds"))
@@ -113,27 +116,27 @@ mod.tmp <- mod.set2$mod.tmp
 mu_pred <- predict(mod.tmp, newdata = GNG_data.set1, what = "mu", type = "response")
 sigma_pred <- predict(mod.tmp, newdata = GNG_data.set1, what = "sigma", type = "response")
 nu_pred <- predict(mod.tmp, newdata = GNG_data.set1, what = "nu", type = "response")
+tau_pred <- predict(mod.tmp, newdata = GNG_data.set1, what = "tau", type = "response")
 
 
 dependentvar <- "d_prime"
 deviation.set1.df <- data.frame(ID=GNG_data.set1$ID)
 observation <- GNG_data.set1[[dependentvar]]
-centile <- pSEP3(observation, mu = mu_pred, sigma = sigma_pred, nu = nu_pred)
+centile <- pSEP3(observation, mu = mu_pred, sigma = sigma_pred, nu = nu_pred, tau = tau_pred)
 deviation.set1.df[[paste0(dependentvar, "_centile")]] <- centile
 deviation.set1.df[[paste0(dependentvar, "_deviationZ")]] <- qnorm(centile)
 deviation.set1.df[[paste0(dependentvar, "_sigma")]] <- sigma_pred
 deviation.set1.df[[paste0(dependentvar, "_mu")]] <- mu_pred
 deviation.set1.df[[paste0(dependentvar, "_nu")]] <- nu_pred
+deviation.set1.df[[paste0(dependentvar, "_tau")]] <- tau_pred
+
 
 saveRDS(deviation.set1.df, paste0(interfileFolder, "/GNGd_prime/EF_GNGd_prime.set1_deviation.rds"))
 
 ## 3rd. merge datasets
 # The deviations will be averaged across the two models.
-GNGd_prime_deviation.set1 <- deviation.set1.df %>% select(c("ID", ends_with("_centile"), ends_with("_deviationZ"), ends_with("_sigma"), ends_with("_mu"), ends_with("_nu")))
-GNGd_prime_deviation.set2 <- deviation.set2.df %>% select(c("ID", ends_with("_centile"), ends_with("_deviationZ"), ends_with("_sigma"), ends_with("_mu"), ends_with("_nu")))
-
-# Create an empty dataframe for averaged deviations
-GNGd_prime_deviation <- data.frame(ID = GNGd_prime_deviation.set1$ID)
+GNGd_prime_deviation.set1 <- deviation.set1.df %>% select(c("ID", ends_with("_centile"), ends_with("_deviationZ"), ends_with("_sigma"), ends_with("_mu"), ends_with("_nu"), ends_with("_tau")))
+GNGd_prime_deviation.set2 <- deviation.set2.df %>% select(c("ID", ends_with("_centile"), ends_with("_deviationZ"), ends_with("_sigma"), ends_with("_mu"), ends_with("_nu"), ends_with("_tau")))
 
 # Calculate the average centile and deviationZ for the variable
 centilename <- "GNG_d_prime_centile"

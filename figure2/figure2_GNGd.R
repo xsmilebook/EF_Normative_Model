@@ -115,7 +115,7 @@ if (!is.null(result.full$simulation)) {
       n_sim = result.full$simulation$n_sim
     )
   )
-  output_rds_path <- paste0(resultFolder, "/anova_simulation_", psyvar_arg, ".rds")
+  output_rds_path <- paste0(resultFolder, "/anova_simulation_", dataname0, psyvar_arg, ".rds")
   saveRDS(sim_result_single, output_rds_path)
   cat(paste("simulated results have been saved to:", output_rds_path, "\n"))
   

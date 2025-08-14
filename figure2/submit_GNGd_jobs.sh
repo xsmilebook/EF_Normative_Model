@@ -21,8 +21,6 @@ PSYC_VARIABLES=(
 # 2. run R script
 R_SCRIPT="/ibmgpfs/cuizaixu_lab/xuhaoshu/EF_Normative_Model/figure2/figure2_GNGd.R"
 
-mkdir -p logs
-
 TASK_ID=$((SLURM_ARRAY_TASK_ID - 1))
 
 CURRENT_VAR=${PSYC_VARIABLES[$TASK_ID]}

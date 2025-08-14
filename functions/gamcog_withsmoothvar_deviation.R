@@ -14,15 +14,14 @@ anovaPB_ext <- function(objectNull, object, n.sim = 999,
   if (length(unlist(coef(objectNull))) > length(unlist(coef(object))))
     stop("The first object (null model) should be smaller than the alternative model.")
   
-  # 获取响应变量的维度名称
   respDimnames <- dimnames(model.response(model.frame(object)))
   
-  # 设置 CPU 数量
   if (is.null(ncpus)) {
-    ncpus <- min(70, parallel::detectCores() - 2)  
+    ncpus <- min(70, parallel::detectCores() - 2)
+    parl = ifelse(ncpus == 1, "no", "snow")
   }
   cat(paste("This run will allocate ", ncpus, " cores."))
-  # 计算原始 ANOVA 表（真实数据）
+
   targs <- match.call(expand.dots = FALSE)
   anovaFn <- anova
   statObs <- try(anova(objectNull, object, ...))
@@ -51,11 +50,10 @@ anovaPB_ext <- function(objectNull, object, n.sim = 999,
     attr(statObs, "heading") <- c(title, topnote)
   }
   
-  # 初始化统计量向量（第1个是真实值）
   stats <- rep(NA, n.sim + 1)
   stats[1] <- statObs[rowRef, colRef]
   
-  # 提取模型框架
+  # model frame preparation
   if (inherits(object, c("lmerMod", "glmerMod"))) {
     cll <- object@call
     mf <- match.call(call = cll)
@@ -69,22 +67,26 @@ anovaPB_ext <- function(objectNull, object, n.sim = 999,
   mf <- mf[c(1L, m)]
   mf[[1L]] <- quote(stats::model.frame)
   
-  # 构建 model.frame
+  # build model.frame
   modelF <- try(eval(mf, parent.frame()), silent = TRUE)
-  if (inherits(modelF, "try-error") || inherits(object, c("lmerMod", "glmmTMB")))
+  if (inherits(modelF, "try-error") | inherits(object, c("lmerMod", "glmerMod", "glmmTMB")))
     modelF <- model.frame(object)
   
   respName <- names(model.frame(object))[1]
   whichResp <- 1
-  if (!is.null(dat) && is.list(dat)) {
-    whichAdd <- which(names(dat) %in% names(modelF) == FALSE)
-    for (iAdd in whichAdd) {
-      if (!is.list(dat[[iAdd]])) modelF[[names(dat)[iAdd]]] <- dat[[iAdd]]
+  if (is.null(dat) == FALSE) {
+    if (is.list(dat)) {
+      whichAdd <- which(names(dat) %in% names(modelF) == FALSE)
+      if(length(whichAdd) > 0) 
+        for (iAdd in whichAdd) {
+          if (!is.list(dat[[iAdd]])) modelF[[names(dat)[iAdd]]] <- dat[[iAdd]]
+        }
     }
   }
   
-  offs <- try(model.offset(modelF), silent = TRUE)
-  if (inherits(offs, "try-error")) offs <- NULL
+  offs = NULL
+  modelF$offs = try(model.offset(modelF))
+  # if (inherits(offs, "try-error")) offs <- NULL
   
   if (regexpr("(", respName, fixed = TRUE) > 0) {
     newResp <- sprintf("`%s`", respName)
@@ -96,18 +98,28 @@ anovaPB_ext <- function(objectNull, object, n.sim = 999,
   is.mva <- ncol(as.matrix(modelF[[whichResp]])) > 1
   
   # simulate response variable
-  yNew <- simulate(objectNull, nsim = n.sim)
-  
+  yNew <- simulate(objectNull, n.sim)
+  is_yNew_list <- is.list(yNew)
+  cat("simulate() returns", ifelse(is_yNew_list, "a LIST (likely mixed model)", 
+                               "a MATRIX (likely linear model"), "\n")
   # define simulate function
-  getStat <- function(iSim, yNew, objectNull, object, modelF, anovaFn, is.mva, fm.update, whichResp, respDimnames, rowRef, colRef) {
+  getStat <- function(iSim, yNew, objectNull = objectNull, object = object, 
+    modelF = modelF, anovaFn = anovaFn, is.mva = is.mva, 
+    fm.update = fm.update, whichResp = whichResp, respDimnames = respDimnames, 
+    rowRef = rowRef, colRef = colRef) {
+
     modelF[[whichResp]] <- if (is.mva) yNew[,,iSim] else as.matrix(yNew[, iSim], dimnames = respDimnames)
     
-    if (is.null(offs)) {
-      objectiNull <- update(objectNull, formula = fm.update, data = modelF)
-      objecti     <- update(object,     formula = fm.update, data = modelF)
-    } else {
-      objectiNull <- update(objectNull, formula = fm.update, data = modelF, offset = offs)
-      objecti     <- update(object,     formula = fm.update, data = modelF, offset = offs)
+    if (inherits(modelF$offs, "try-error") | is.null(modelF$offs)) {
+      objectiNull = update(objectNull, formula = fm.update, 
+          data = modelF)
+      objecti = update(object, formula = fm.update, data = modelF)
+    }
+    else {
+      objectiNull = update(object, formula = fm.update, 
+          data = modelF, offset = offs)
+      objecti = update(object, formula = fm.update, data = modelF, 
+          offset = offs)
     }
     
     return(anovaFn(objectiNull, objecti, ...)[rowRef, colRef])
@@ -115,11 +127,9 @@ anovaPB_ext <- function(objectNull, object, n.sim = 999,
   
   # simulate
   if (ncpus > 1) {
-    # 🔥 关键：使用makeCluster而不是mclapply
     cl <- NULL
     tryCatch({
       cl <- parallel::makeCluster(ncpus)
-      # 确保在函数结束时关闭集群
       on.exit(parallel::stopCluster(cl), add = TRUE)
       
       parallel::clusterExport(cl, c("getStat", "anovaFn", "yNew", "objectNull", "object", "modelF", 
@@ -133,7 +143,7 @@ anovaPB_ext <- function(objectNull, object, n.sim = 999,
                                            rowRef = rowRef, colRef = colRef)
       stats[-1] <- unlist(statList)
     }, error = function(e) {
-      # 如果并行失败，回退到串行
+      
       warning("Parallel processing failed, falling back to serial execution: ", e$message)
       for (iBoot in 2:(n.sim + 1)) {
         stats[iBoot] <- getStat(iBoot - 1, yNew = yNew, objectNull = objectNull, object = object,
@@ -143,7 +153,7 @@ anovaPB_ext <- function(objectNull, object, n.sim = 999,
       }
     })
   } else {
-    # 串行执行
+    
     for (iBoot in 2:(n.sim + 1)) {
       stats[iBoot] <- getStat(iBoot - 1, yNew = yNew, objectNull = objectNull, object = object,
                               modelF = modelF, anovaFn = anovaFn, is.mva = is.mva,
@@ -214,8 +224,9 @@ gam.fit.Independent.var <- function(dependentvar, dataname, smoothvar, interest.
   # Full versus reduced model anova p-value
   if (stats_only){
     # Perform ANOVA simulation
-    anova_results <- anovaPB_ext(gam.model.null, gam.model, n.sim = 10000, test = 'Chisq', ncpus = 660)
-    anova.pvalues <- anova_results$`Pr(>Chi)`[2]  # Get 1000 p-values
+    anova_results <- anovaPB_ext(gam.model.null, gam.model, n.sim = 10000, test = 'Chisq')
+    # anova.pvalues <- anova_results$`Pr(>Chi)`[2]  # Get 10000 p-values
+    anova.pvalues <- anova_results$`Pr(>Chi)`[2]  # Get 10000 p-values
     simulated_stats <- attr(anova_results, "simulated_stats")
     observed_stat <- attr(anova_results, "observed_stat")
   }else{

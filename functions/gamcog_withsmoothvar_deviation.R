@@ -99,15 +99,14 @@ anovaPB_ext <- function(objectNull, object, n.sim = 999,
   
   # simulate response variable
   yNew <- simulate(objectNull, n.sim)
-  is_yNew_list <- is.list(yNew)
-  cat("simulate() returns", ifelse(is_yNew_list, "a LIST (likely mixed model)", 
-                               "a MATRIX (likely linear model"), "\n")
+
+
   # define simulate function
   getStat <- function(iSim, yNew, objectNull = objectNull, object = object, 
     modelF = modelF, anovaFn = anovaFn, is.mva = is.mva, 
     fm.update = fm.update, whichResp = whichResp, respDimnames = respDimnames, 
     rowRef = rowRef, colRef = colRef) {
-
+    
     modelF[[whichResp]] <- if (is.mva) yNew[,,iSim] else as.matrix(yNew[, iSim], dimnames = respDimnames)
     
     if (inherits(modelF$offs, "try-error") | is.null(modelF$offs)) {

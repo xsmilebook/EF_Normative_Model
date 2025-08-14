@@ -23,7 +23,7 @@ psyvar_arg <- args[1]
 wd <- getwd()
 if (str_detect(wd, "cuizaixu_lab")){
   datapath <- '/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/interfileFolder'
-  functionFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/EF_Normative_Model/anova"
+  functionFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/EF_Normative_Model/functions"
   # create subfolder
   resultFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/results/EF_psy"
   FigureFolder <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/figures/fig2"
@@ -37,7 +37,7 @@ if (str_detect(wd, "cuizaixu_lab")){
 dir.create(resultFolder, showWarnings = FALSE, recursive = TRUE)
 dir.create(FigureFolder, showWarnings = FALSE, recursive = TRUE)
 
-source("/ibmgpfs/cuizaixu_lab/xuhaoshu/scripts/anova_chisq/gamcog_withsmoothvar_deviation.R")
+source(file.path(functionFolder, "gamcog_withsmoothvar_deviation.R"))
 
 # 5. load data
 GNGd_data <- read_rds(paste0(datapath, '/Gonogo/GNGd_prime.deviations.rds'))

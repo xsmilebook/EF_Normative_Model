@@ -4,12 +4,17 @@ rm(list=ls())
 # 加载必要的包
 library(ggplot2)
 library(tidyverse)
+library(mgcv)
 library(readxl)
+library(parallel)
+library(gamlss)
+library(scales)
+library(tableone)
 library(openxlsx)
 library(patchwork)
-library(ggsignif)
+library(ggsignif) # 用于添加显著性标记
 
-# --- 1. 路径设置与数据导入 (与之前相同) ---
+# --- 路径设置 (与原代码相同) ---
 wd <- getwd()
 if (str_detect(wd, "cuizaixu_lab")){
   datapath <- '/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/EF_Yunfu/interfileFolder_back12before'
@@ -25,30 +30,52 @@ if (str_detect(wd, "cuizaixu_lab")){
   resultFolder <- "D:/datasets/yunfu/results/psy_corr"
 }
 
-# --- 2. 数据处理 (与之前相同) ---
-PHQ_data <- read_xlsx(paste0(interfileFolder, '/PHQ.xlsx'))
-GNGd_data <- read_rds(paste0(interfileFolder, '/GNGd_prime.deviations.rds'))
-back1_data <- read_rds(paste0(interfileFolder, '/back1Acc.deviations.rds'))
-back2_data <- read_rds(paste0(interfileFolder, '/back2Acc.deviations.rds'))
-PHQ_data <- PHQ_data %>% select(用户ID, PHQ_y09) %>% mutate(用户ID = as.character(用户ID))
-GNGd_data <- GNGd_data %>% mutate(x__ID = as.character(x__ID))
-back1_data <- back1_data %>% mutate(x__ID = as.character(x__ID))
-back2_data <- back2_data %>% mutate(x__ID = as.character(x__ID))
-GNGd_data <- inner_join(GNGd_data, PHQ_data, by = c("x__ID" = "用户ID"))
-back1_data <- inner_join(back1_data, PHQ_data, by = c("x__ID" = "用户ID"))
-back2_data <- inner_join(back2_data, PHQ_data, by = c("x__ID" = "用户ID"))
+# --- 数据导入与合并 (与原代码相同) ---
+# source functions
+#source(paste0(functionFolder, "/gam_varyingcoefficients.R"))
+source(paste0(functionFolder, "/gamcog_withsmoothvar_deviation.R"))
+#source(paste0(functionFolder, "/ordinalcorr_new.R"))
+
+# import dataset
+# PHQ_data <- read_xlsx(paste0(interfileFolder, '/PHQ.xlsx'))
+GNGd_data <- read_rds(paste0(interfileFolder, '/Q_GNG_SBQR.rds'))
+back1_data <- read_rds(paste0(interfileFolder, '/Q_1back_SBQR.rds'))
+back2_data <- read_rds(paste0(interfileFolder, '/Q_2back_SBQR.rds'))
+
+GNGd_data <- GNGd_data %>%
+  filter(GNGd_data$SBQ_y01R != -1)
+  
+back1_data <- back1_data %>%
+  filter(back1_data$SBQ_y01R != -1)
+
+back2_data <- back2_data %>%
+  filter(back2_data$SBQ_y01R != -1)
+
+
 GNGd_data$Sex_factor <- as.factor(GNGd_data$Sex)
 back1_data$Sex_factor <- as.factor(back1_data$Sex)
 back2_data$Sex_factor <- as.factor(back2_data$Sex)
+
 plot_data <- bind_rows(
-  GNGd_data %>% select(x__ID, PHQ_y09, Age_year, Sex_factor, d_prime_deviationZ) %>% rename(acc_deviationZ = d_prime_deviationZ) %>% mutate(task = "GNGd"),
-  back1_data %>% select(x__ID, PHQ_y09, Age_year, Sex_factor, Oneback_acc_deviationZ) %>% rename(acc_deviationZ = Oneback_acc_deviationZ) %>% mutate(task = "Back1"),
-  back2_data %>% select(x__ID, PHQ_y09, Age_year, Sex_factor, Twoback_acc_deviationZ) %>% rename(acc_deviationZ = Twoback_acc_deviationZ) %>% mutate(task = "Back2")
-) %>% filter(!is.na(PHQ_y09))
-plot_data$PHQ_y09 <- as.factor(plot_data$PHQ_y09)
+  GNGd_data %>% 
+    select(ID, SBQ_y01R, Age_year, Sex_factor, d_prime_deviationZ) %>%
+    rename(acc_deviationZ = d_prime_deviationZ) %>%
+    mutate(task = "GNGd"),
+  
+  back1_data %>% 
+    select(ID, SBQ_y01R, Age_year, Sex_factor, Oneback_acc_deviationZ) %>%
+    rename(acc_deviationZ = Oneback_acc_deviationZ) %>%
+    mutate(task = "Back1"),
+  
+  back2_data %>% 
+    select(ID, SBQ_y01R, Age_year, Sex_factor, Twoback_acc_deviationZ) %>%
+    rename(acc_deviationZ = Twoback_acc_deviationZ) %>%
+    mutate(task = "Back2")
+) %>%
+  filter(!is.na(SBQ_y01R))
 
+plot_data$SBQ_y01R <- as.factor(plot_data$SBQ_y01R)
 
-# --- 3. 新的统计分析 (ANOVA + TukeyHSD) ---
 cat("--- 开始执行 ANOVA + TukeyHSD 统计分析 ---\n")
 
 # 创建用于存储结果的空列表
@@ -58,10 +85,10 @@ tasks_to_analyze <- unique(plot_data$task)
 for (current_task in tasks_to_analyze) {
   cat(paste0("\n--- 正在分析任务: ", current_task, " ---\n"))
   data_clean <- plot_data %>% filter(task == current_task)
-  data_clean$PHQ_y09 <- factor(data_clean$PHQ_y09)
+  data_clean$SBQ_y01R <- factor(data_clean$SBQ_y01R)
   
   # 拟合 ANOVA 模型
-  ancova_model <- aov(acc_deviationZ ~ PHQ_y09 + Age_year + Sex_factor, data = data_clean)
+  ancova_model <- aov(acc_deviationZ ~ SBQ_y01R, data = data_clean)
   p_value <- anova(ancova_model)$`Pr(>F)`[1]
   
   cat(paste0("ANOVA 主效应 P 值: ", round(p_value, 5), "\n"))
@@ -69,8 +96,8 @@ for (current_task in tasks_to_analyze) {
   # 只有当 ANOVA 主效应显著时才进行事后分析
   if (!is.na(p_value) && p_value < 0.05) {
     cat("主效应显著，开始执行 Tukey's HSD 事后检验...\n")
-    tukey_result <- TukeyHSD(ancova_model, "PHQ_y09")
-    tukey_df <- as.data.frame(tukey_result$PHQ_y09)
+    tukey_result <- TukeyHSD(ancova_model, "SBQ_y01R")
+    tukey_df <- as.data.frame(tukey_result$SBQ_y01R)
     tukey_df$comparison <- rownames(tukey_df)
     tukey_df$Task <- current_task
     ancova_posthoc_results[[current_task]] <- tukey_df
@@ -81,7 +108,7 @@ for (current_task in tasks_to_analyze) {
   # --- 新增功能：计算 Spearman 相关性 ---
   cat("---\n计算 Spearman 相关性:\n")
   # cor.test 需要数值输入，因此我们将因子转为数值
-  cor_result <- cor.test(~ acc_deviationZ + as.numeric(as.character(PHQ_y09)), 
+  cor_result <- cor.test(~ acc_deviationZ + as.numeric(as.character(SBQ_y01R)), 
                          data = data_clean, 
                          method = "spearman",
                          exact = FALSE) # exact=FALSE 避免因数据有重复值而产生警告
@@ -98,7 +125,7 @@ if (length(ancova_posthoc_results) > 0) {
   all_posthoc_results_df <- do.call(rbind, ancova_posthoc_results)
   rownames(all_posthoc_results_df) <- NULL
 } else {
-  all_posthoc_results_df <- data.frame() # 如果没有显著结果，创建一个空数据框
+  all_posthoc_results_df <- data.frame() 
 }
 
 
@@ -124,28 +151,27 @@ if (nrow(all_posthoc_results_df) > 0) {
 
 
 # --- 5. 最终版绘图函数 (手动控制，无需修改) ---
-# --- 修正后的最终版绘图函数 (不再依赖 vjust) ---
 plot_task_with_signif <- function(data, task_name, significance_df, jitter_width = 0.15, scatter_offset = 0.5) {
   
   task_signif <- significance_df %>% 
     filter(Task == task_name, Significant == "Yes")
   
   task_data <- data %>% filter(task == task_name)
-  p <- ggplot(task_data, aes(x = PHQ_y09, y = acc_deviationZ)) +
+  p <- ggplot(task_data, aes(x = SBQ_y01R, y = acc_deviationZ)) +
     geom_boxplot(color = "black", outlier.shape = NA, alpha = 0.6, width = 0.6) +
-    geom_jitter(aes(x = as.numeric(PHQ_y09) + scatter_offset),
+    geom_jitter(aes(x = as.numeric(SBQ_y01R) + scatter_offset),
                 color = "lightblue", alpha = 0.6, size = 1, 
                 width = jitter_width, height = 0) +
     theme_minimal() +
-    labs(title = task_name, x = "PHQ_y09", y = "Deviation Z-score") +
+    labs(title = task_name, x = "SBQ_y01R", y = "Deviation Z-score") +
     scale_x_discrete(expand = expansion(add = c(0.8, 0.8))) +
     coord_cartesian(ylim = c(-3, 3.6), clip = "off") 
   
   if (nrow(task_signif) > 0) {
     signif_manual_df <- task_signif %>%
       mutate(
-        xmin = as.numeric(factor(Group1, levels = levels(task_data$PHQ_y09))),
-        xmax = as.numeric(factor(Group2, levels = levels(task_data$PHQ_y09))),
+        xmin = as.numeric(factor(Group1, levels = levels(task_data$SBQ_y01R))),
+        xmax = as.numeric(factor(Group2, levels = levels(task_data$SBQ_y01R))),
         annotations = sapply(P_value, function(p) {
           if (p < 0.001) " "
           else if (p < 0.01) " "
@@ -178,6 +204,6 @@ p3 <- plot_task_with_signif(plot_data, "Back2", plot_signif_data)
 
 combined_plot <- p1 + p2 + p3 +
   plot_layout(ncol = 3) +
-  plot_annotation(title = "Deviation Z-scores across PHQ scores for different tasks (ANOVA & TukeyHSD)")
+  plot_annotation(title = "Deviation Z-scores across SBQ scores for different tasks (ANOVA & TukeyHSD)")
 
 print(combined_plot)

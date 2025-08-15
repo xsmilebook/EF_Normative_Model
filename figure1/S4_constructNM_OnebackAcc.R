@@ -76,16 +76,20 @@ mod.tmp <- mod.set1$mod.tmp
 
 mu_pred <- predict(mod.tmp, newdata = back1_data.set2, what = "mu", type = "response")
 sigma_pred <- predict(mod.tmp, newdata = back1_data.set2, what = "sigma", type = "response")
+nu_pred <- predict(mod.tmp, newdata = back1_data.set2, what = "nu", type = "response")
+tau_pred <- predict(mod.tmp, newdata = back1_data.set2, what = "tau", type = "response")
 
 
 dependentvar <- "Oneback_acc"
 deviation.set2.df <- data.frame(ID=back1_data.set2$ID)
 observation <- back1_data.set2[[dependentvar]]
-centile <- pSEP2(observation, mu = mu_pred, sigma = sigma_pred)
+centile <- pSEP2(observation, mu = mu_pred, sigma = sigma_pred, nu = nu_pred, tau = tau_pred)
 deviation.set2.df[[paste0(dependentvar, "_centile")]] <- centile
 deviation.set2.df[[paste0(dependentvar, "_deviationZ")]] <- qnorm(centile)
 deviation.set2.df[[paste0(dependentvar, "_sigma")]] <- sigma_pred
 deviation.set2.df[[paste0(dependentvar, "_mu")]] <- mu_pred
+deviation.set2.df[[paste0(dependentvar, "_nu")]] <- nu_pred
+deviation.set2.df[[paste0(dependentvar, "_tau")]] <- tau_pred
 
 
 saveRDS(deviation.set2.df, paste0(interfileFolder, "/1-back/EF_back1Acc.set2_deviation.rds"))
@@ -94,7 +98,7 @@ saveRDS(deviation.set2.df, paste0(interfileFolder, "/1-back/EF_back1Acc.set2_dev
 # set2
 dataname <- "back1_data.set2"
 if (!file.exists(paste0(interfileFolder, "/1-back/GAMLSS.back1Accset2.sum.rds"))){
-  mod.set2 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify,randomvar=NA)
+  mod.set2 <- construct_gamlss(dataname, dependentvar, smoothterm, covariates, mu.df, sigma.df, degree, distribution.fam,IDvar, quantile.vec, stratify, randomvar=NA)
   saveRDS(mod.set2, paste0(interfileFolder, "/1-back/GAMLSS.back1Accset2.sum.rds"))
 }else{
   mod.set2 <- readRDS(paste0(interfileFolder, "/1-back/GAMLSS.back1Accset2.sum.rds"))
@@ -109,16 +113,20 @@ gam.data2 <- back1_data.set2
 mod.tmp <- mod.set2$mod.tmp
 mu_pred <- predict(mod.tmp, newdata = back1_data.set1, what = "mu", type = "response")
 sigma_pred <- predict(mod.tmp, newdata = back1_data.set1, what = "sigma", type = "response")
+nu_pred <- predict(mod.tmp, newdata = back1_data.set1, what = "nu", type = "response")
+tau_pred <- predict(mod.tmp, newdata = back1_data.set1, what = "tau", type = "response")
 
 
 dependentvar <- "Oneback_acc"
 deviation.set1.df <- data.frame(ID=back1_data.set1$ID)
 observation <- back1_data.set1[[dependentvar]]
-centile <- pSEP2(observation, mu = mu_pred, sigma = sigma_pred)
+centile <- pSEP2(observation, mu = mu_pred, sigma = sigma_pred, nu = nu_pred, tau = tau_pred)
 deviation.set1.df[[paste0(dependentvar, "_centile")]] <- centile
 deviation.set1.df[[paste0(dependentvar, "_deviationZ")]] <- qnorm(centile)
 deviation.set1.df[[paste0(dependentvar, "_sigma")]] <- sigma_pred
 deviation.set1.df[[paste0(dependentvar, "_mu")]] <- mu_pred
+deviation.set1.df[[paste0(dependentvar, "_nu")]] <- nu_pred
+deviation.set1.df[[paste0(dependentvar, "_tau")]] <- tau_pred
 
 
 saveRDS(deviation.set1.df, paste0(interfileFolder, "/1-back/EF_back1Acc.set1_deviation.rds"))

@@ -65,7 +65,7 @@ back2_data <- inner_join(
 
 ## 1) set up variables
 psyc_variables_continous <- c("PHQ_y09")
-psyc_variables_discrete <- c( "SDQ_cutoff")
+
 # EF vars
 EFvars.set <- matrix(c("d_prime_deviationZ", "GNGd",
                        "Oneback_acc_deviationZ", "back1",

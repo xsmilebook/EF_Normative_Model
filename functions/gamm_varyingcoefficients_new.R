@@ -35,11 +35,11 @@ pbootint <- function(modelobj, int_var = NA) {
   mat1 <- model.matrix(g1)
   mat2 <- model.matrix(g2)
   
-  src_subject_id <- df$src_subject_id
+  ID <- df$ID
   y <- df[, thisResp]
   
-  m1 <- lmer(y ~ -1 + mat1 + (1 | src_subject_id))
-  m2 <- lmer(y ~ -1 + mat2 + (1 | src_subject_id))
+  m1 <- lmer(y ~ -1 + mat1 + (1 | ID))
+  m2 <- lmer(y ~ -1 + mat2 + (1 | ID))
   
   refdist <- PBrefdist(m1, m2, nsim = numsims)
   pb <- PBmodcomp(m1, m2, ref = refdist)
@@ -81,11 +81,11 @@ pbootint <- function(modelobj, int_var = NA) {
 #   mat1 <- model.matrix(g1)
 #   mat2 <- model.matrix(g2)
 # 
-#   src_subject_id<-df$src_subject_id
+#   ID<-df$ID
 #   y <- df[,thisResp]
 # 
-#   m1 <- lmer(y ~ -1 + mat1 + (1|src_subject_id))
-#   m2 <- lmer(y ~ -1 + mat2 + (1|src_subject_id))
+#   m1 <- lmer(y ~ -1 + mat1 + (1|ID))
+#   m2 <- lmer(y ~ -1 + mat2 + (1|ID))
 #   refdist <- PBrefdist(m1, m2, nsim=numsims)
 #   pb <- PBmodcomp(m1, m2, ref = refdist)
 #   int_pval <- pb$test["PBtest","p.value"]
@@ -126,12 +126,12 @@ pbootint <- function(modelobj, int_var = NA) {
 #   mat2 <- model.matrix(g2)
 #   
 #   # 获取被试 ID 和响应变量
-#   src_subject_id <- df$src_subject_id
+#   ID <- df$ID
 #   y <- df[, thisResp]
 #   
 #   # 使用线性混合模型拟合
-#   m1 <- lmer(y ~ -1 + mat1 + (1 | src_subject_id))
-#   m2 <- lmer(y ~ -1 + mat2 + (1 | src_subject_id))
+#   m1 <- lmer(y ~ -1 + mat1 + (1 | ID))
+#   m2 <- lmer(y ~ -1 + mat2 + (1 | ID))
 #   
 #   # 使用 PBrefdist 和 PBmodcomp 计算显著性
 #   refdist <- PBrefdist(m1, m2, nsim = numsims)
@@ -163,10 +163,10 @@ pbootint <- function(modelobj, int_var = NA) {
 #   gam.data <- gam.data[NonNANIndex,]
 #   parcel <- dependentvar
 #   modelformula <- as.formula(sprintf("%1$s ~ s(%2$s, k=%3$s, fx=%4$s) + s(%2$s, by=%5$s, k=%3$s, fx=%4$s) + %6$s", dependentvar, smooth_var, knots, set_fx, int_var,covariates))
-#   gamm.model <- gamm4(modelformula, random=~(1|src_subject_id), REML=TRUE, data = gam.data)
+#   gamm.model <- gamm4(modelformula, random=~(1|ID), REML=TRUE, data = gam.data)
 #   # Fit null model for ANOVA test
 #   modelformula.null <- as.formula(sprintf("%1$s ~ s(%2$s, k=%3$s, fx=%4$s) + %5$s + %6$s", dependentvar, smooth_var, knots, set_fx, int_var,covariates))
-#   gamm.model.null <- gamm4(modelformula.null, random = ~(1|src_subject_id), REML = TRUE, data = gam.data)
+#   gamm.model.null <- gamm4(modelformula.null, random = ~(1|ID), REML = TRUE, data = gam.data)
 # 
 #   # Calculate ANOVA p-value
 #   anova_results <- anova(gamm.model$mer, gamm.model.null$mer, test = "Chisq")
@@ -296,14 +296,40 @@ pbootint <- function(modelobj, int_var = NA) {
 
 gamm.varyingcoefficients <- function(dependentvar, dataname, smooth_var, int_var, covariates, bestmodel, knots, set_fx = FALSE, increments, draws, return_posterior_coefficients = FALSE){
   
-  #Set parameters
-  npd <- as.numeric(draws) #number of draws from the posterior distribution
-  np <- as.numeric(increments) #number of smooth_var increments to get derivatives at
-  UNCONDITIONAL <- FALSE #should we account for uncertainty when estimating smoothness parameters?
+  cat("\n--- Running Analysis for:", dependentvar, " & ", int_var, "---\n")
   
+  # Set parameters
+  npd <- as.numeric(draws)
+  np <- as.numeric(increments)
+  UNCONDITIONAL <- FALSE
   
-  #Fit the gam
-  gam.data <- get(dataname)
+  # Fit the gam
+  gam.data.full <- get(dataname)
+  
+  # --- 调试点 1: 检查进入函数的原始数据 ---
+  cat("1. Dimensions of initial data '", dataname, "': ", nrow(gam.data.full), "rows, ", ncol(gam.data.full), "cols\n", sep="")
+  cat("   Unique IDs in initial data: ", length(unique(gam.data.full$ID)), "\n")
+  
+  # 内部数据处理
+  cognition <- as.numeric(gam.data.full[[int_var]])
+  outlierindx1 <- which(cognition < mean(cognition, na.rm = TRUE) - 3 * sd(cognition, na.rm = TRUE) | cognition > mean(cognition, na.rm = TRUE) + 3 * sd(cognition, na.rm = TRUE))
+  if(length(outlierindx1) > 0) gam.data.full[outlierindx1, int_var] <- NA
+  
+  # 关键的NA筛选
+  NonNANIndex <- which(!is.na(gam.data.full[, int_var]) & !is.na(gam.data.full[, dependentvar]))
+  gam.data <- gam.data.full[NonNANIndex, ]
+  
+  # --- 调试点 2: 检查筛选后的数据 ---
+  cat("2. Filtering for non-NA in '", dependentvar, "' and '", int_var, "'\n", sep="")
+  cat("   Dimensions of data AFTER filtering NAs: ", nrow(gam.data), "rows, ", ncol(gam.data), "cols\n", sep="")
+  cat("   Unique IDs in data AFTER filtering NAs: ", length(unique(gam.data$ID)), "\n")
+  
+  # 检查是否还有足够的数据
+  if (nrow(gam.data) < 10 || length(unique(gam.data$ID)) <= 1) {
+    cat("   !!! ERROR: Not enough data or unique IDs to run the model. Skipping this combination. !!!\n")
+    # 返回一个空结果或者NULL，避免程序崩溃
+    return(NULL)
+  }
   smoothmin <- min(gam.data[ , smooth_var])
   smoothmax <- max(gam.data[ , smooth_var])
   cognition<- as.numeric(gam.data[[int_var]]) 
@@ -316,10 +342,10 @@ gamm.varyingcoefficients <- function(dependentvar, dataname, smooth_var, int_var
   
   if (bestmodel=="GAMM"){
     modelformula <- as.formula(sprintf("%1$s ~ s(%2$s, by=%5$s, k=%3$s, fx=%4$s) + s(%2$s, k=%3$s, fx=%4$s) + %6$s", dependentvar, smooth_var, knots, set_fx, int_var,covariates))
-    gamm.model <- gamm4(modelformula, random=~(1|src_subject_id), REML=TRUE, data = gam.data)
+    gamm.model <- gamm4(modelformula, random=~(1|ID), REML=TRUE, data = gam.data)
     # Fit null model for ANOVA test
     modelformula.null <- as.formula(sprintf("%1$s ~ s(%2$s, k=%3$s, fx=%4$s) + %5$s + %6$s", dependentvar, smooth_var, knots, set_fx, int_var,covariates))
-    gamm.model.null <- gamm4(modelformula.null, random = ~(1|src_subject_id), REML = TRUE, data = gam.data)
+    gamm.model.null <- gamm4(modelformula.null, random = ~(1|ID), REML = TRUE, data = gam.data)
     anova_results <- anova(gamm.model$mer, gamm.model.null$mer, test = "Chisq")
     anova.int.pvalue <- anova_results$`Pr(>Chisq)`[2]
     if (return_posterior_coefficients == T){
@@ -344,10 +370,10 @@ gamm.varyingcoefficients <- function(dependentvar, dataname, smooth_var, int_var
     model.tmp <- gamm.model$gam
     
   }else if (bestmodel=="LM"){
-    modelformula <- as.formula(sprintf("%s ~ %s * %s + %s + (1|src_subject_id)", dependentvar, int_var, smooth_var, covariates))
+    modelformula <- as.formula(sprintf("%s ~ %s * %s + %s + (1|ID)", dependentvar, int_var, smooth_var, covariates))
     lm.model <- lmer(modelformula, REML = T, data=gam.data)
     # Fit null model for ANOVA test
-    modelformula.null <- as.formula(sprintf("%s ~ %s + %s + %s + (1|src_subject_id)", dependentvar, int_var, covariates, smooth_var))
+    modelformula.null <- as.formula(sprintf("%s ~ %s + %s + %s + (1|ID)", dependentvar, int_var, covariates, smooth_var))
     lm.model.null <- lmer(modelformula.null, REML = T, data=gam.data)
     anova_results <- anova(lm.model, lm.model.null, test = "Chisq")
     anova.int.pvalue <- anova_results$`Pr(>Chisq)`[2]

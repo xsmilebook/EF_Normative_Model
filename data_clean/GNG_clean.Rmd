@@ -3,3 +3,386 @@ title: "GNG_clean"
 output: html_document
 ---
 
+```{r}
+# load packages
+library(readxl)
+library(writexl)
+library(dplyr)
+library(stringr)
+```
+
+## --- Step1: Within-subjects cleaning (被试内数据清洗) ---
+```{r}
+datapath <- 'D:/datasets/yunfu/raw_data/GNG_data/raw_data1'
+output_path <- 'D:/datasets/yunfu/raw_data/GNG_data/cleaned_data1'
+report_path <- file.path(output_path, 'gonogo_report.txt')
+
+files <- list.files(datapath, pattern = "*.xlsx", full.names = TRUE)
+
+new_column_names <- c(
+  "task_name", "id", "name", "gender", "age", "game", "school", 
+  "grade", "class", "timeall", "hand", "trial", "block", 
+  "view_point", "vptime", "materials", "stimulitime", "blank", 
+  "blanktime", "pressbutton", "correct", "RT", "ACC", "run"
+)
+
+results_list <- list()
+
+for (file_path in files) {
+  data_table <- read_excel(file_path, skip = 2, col_names = FALSE)
+  colnames(data_table) <- new_column_names
+  unique_ids <- unique(data_table$id)
+  
+  # Iteration for all subjects
+  for (current_id in unique_ids) {
+    subjdata_GNG <- data_table %>% filter(id == current_id)
+    
+    # extract formal trials
+    formaldata <- subjdata_GNG %>% filter(str_detect(trial, "正式"))
+    formaldata_GNG <- head(formaldata, 100)
+    
+    # delete reaction time less than 200ms or more than 2000ms
+    formaldata_GNG$RT <- as.numeric(formaldata_GNG$RT)
+    formaldata_RTfiltered <- formaldata_GNG %>% 
+      filter(RT > 200 & RT < 2001)
+    
+    # record deleted trials number
+    fast_trials <- 100 - nrow(formaldata_RTfiltered)
+    deleted_trials_percent <- fast_trials / 100
+    
+    # trials type
+    Nogo_trials <- formaldata_RTfiltered %>% filter(correct == "null")
+    Go_trials <- formaldata_RTfiltered %>% filter(correct == "空格")
+    
+    # accuracy
+    GNG_correct <- formaldata_RTfiltered$ACC == "正确"
+    GNG_acc <- sum(GNG_correct) / nrow(formaldata_RTfiltered)
+    Go_acc <- sum(Go_trials$ACC == "正确") / nrow(Go_trials)
+    Nogo_acc <- sum(Nogo_trials$ACC == "正确") / nrow(Nogo_trials)
+    
+    Go_rt_trials <- Go_trials %>% filter(ACC == "正确")
+    GNG_mean_RT <- mean(Go_rt_trials$RT, na.rm = TRUE)
+    Go_rt_sd <- sd(Go_rt_trials$RT, na.rm = TRUE)
+    
+    Nogo_error_trials <- Nogo_trials %>% filter(ACC == "错误")
+    mean_nogo_error_RT <- mean(Nogo_error_trials$RT, na.rm = TRUE)
+    
+    # last 10 times of test trials
+    test_trials <- subjdata_GNG %>% filter(str_detect(trial, "测试"))
+    last10_test_trials <- tail(test_trials, 10)
+    test_correct <- last10_test_trials$ACC == "正确"
+    test_acc <- sum(test_correct) / nrow(last10_test_trials)
+    
+    # Record the first number following '测试' in the trial, and name it ptime
+    ptime <- NA
+    for (test_trial_str in last10_test_trials$trial) {
+      ptime_match <- str_match(test_trial_str, "测试-(\\d)")
+      if (!is.na(ptime_match[1, 2])) {
+        ptime <- as.numeric(ptime_match[1, 2])
+        break
+      }
+    }
+    
+    # information of subject
+    name <- subjdata_GNG$name[1]
+    gender <- subjdata_GNG$gender[1]
+    age <- subjdata_GNG$age[1]
+    school <- subjdata_GNG$school[1]
+    grade <- subjdata_GNG$grade[1]
+    hand <- subjdata_GNG$hand[1]
+    
+    # add result to table
+    results_list[[length(results_list) + 1]] <- data.frame(
+      ID = current_id, Name = name, Gender = gender, Age = age, School = school, Grade = grade, Hand = hand,
+      GNG_acc = GNG_acc, Go_acc = Go_acc, Nogo_acc = Nogo_acc, Mean_RT = GNG_mean_RT,
+      Deleted_Trials_Percent = deleted_trials_percent, Test_Acc = test_acc, Ptime = ptime,
+      Mean_Nogo_Error_RT = mean_nogo_error_RT, Go_rt_sd = Go_rt_sd
+    )
+  }
+}
+
+# merge as dataframe
+resultTable <- bind_rows(results_list)
+
+write_xlsx(resultTable, file.path(output_path, 'gonogo_clean.xlsx'))
+cat("Step 1: subject trials infomation has been completed.\n")
+```
+# --- Part 1: Initial Data Loading and Deduplication ---
+```{r}
+cat("--- Part 1: Initial Data Loading, Deduplication, and Merging ---\n")
+
+# Read the initial combined data file
+data <- read_excel(file.path(output_path, 'gonogo_clean.xlsx'))
+cat(sprintf("Step 1.0: Initial data loaded. Found %d total entries.\n", nrow(data)))
+
+# Remove duplicate entries based on participant ID, keeping the first entry
+initial_count <- nrow(data)
+cleanedData <- data %>% distinct(ID, .keep_all = TRUE)
+removed_count <- initial_count - nrow(cleanedData)
+cat(sprintf("Step 1.1: Removed duplicate IDs.                | Removed: %4d | Remaining: %4d\n", removed_count, nrow(cleanedData)))
+
+# Save the deduplicated data
+write_xlsx(cleanedData, file.path(output_path, 'gonogo_cleaned.xlsx'))
+
+# Merge with the detailed age information file
+table1 <- read_excel(file.path(output_path, 'gonogo_cleaned.xlsx'))
+table2 <- read_excel('D:/datasets/yunfu/raw_data/yunfu_agebyID.xlsx')
+table2_sub <- table2 %>% select(ID, Name, Age_day, Age_month, Age_year)
+combinetable <- left_join(table1, table2_sub, by = c("ID", "Name"))
+
+# Save the final merged data file
+write_xlsx(combinetable, file.path(output_path, 'gonogo_clean_combineage.xlsx'))
+cat("Step 1.2: Merged with age data successfully.\n")
+```
+
+# --- Part 2: Within-Subjects Data Cleaning ---
+```{r}
+cat("\n--- Part 2: Within-Subjects Data Cleaning (Applying Exclusion Criteria) ---\n")
+
+# Initialize a new report file
+if (file.exists(report_path)) file.remove(report_path)
+file.create(report_path)
+write("Data Cleaning Report: Go/No-Go Task", file = report_path, append = FALSE)
+write("-------------------------------------\n", file = report_path, append = TRUE)
+
+
+# Create a function to report cleaning steps consistently
+report_step <- function(data_before, data_after, reason, report_file) {
+  removed <- nrow(data_before) - nrow(data_after)
+  remaining <- nrow(data_after)
+  # Print to console
+  cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", reason, removed, remaining))
+  # Write to report file
+  write(sprintf("%s: %d, %d", reason, removed, remaining), file = report_file, append = TRUE)
+  return(data_after)
+}
+
+# The main data frame for cleaning
+current_data <- combinetable
+
+# 2.0: Remove subjects with empty Go ACC
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(!is.na(Go_acc)),
+  "Removed subjects with Go_acc of NA",
+  report_path
+)
+
+# 2.0: Remove subjects with empty No-go ACC
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(!is.na(Nogo_acc)),
+  "Removed subjects with Nogo_acc of NA",
+  report_path
+)
+
+
+# 2.1: Remove test subjects from a specific school
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(School != '清华大学西区'),
+  "Removed test subjects (school = '清华大学西区')",
+  report_path
+)
+
+# 2.2: Remove subjects with missing age data
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(!is.na(Age_year) & !is.na(as.numeric(Age))),
+  "Removed subjects with missing age data",
+  report_path
+)
+
+# 2.3: Remove subjects where recorded Age and calculated Age_year differ by > 1
+current_data$Age <- as.numeric(current_data$Age)
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(abs(Age_year - Age) <= 1),
+  "Removed subjects with inconsistent age records",
+  report_path
+)
+
+# 2.4: Remove subjects outside the target age range (11 < age <= 18)
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(Age_year > 11 & Age_year <= 18),
+  "Removed subjects outside of age range (11-18 years)",
+  report_path
+)
+
+# 2.5: Remove subjects with missing gender data
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(!is.na(Gender) & Gender != ""),
+  "Removed subjects with missing gender data",
+  report_path
+)
+
+# 2.6: Remove subjects with less than 50% valid trials
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(Deleted_Trials_Percent <= 0.5),
+  "Removed subjects with < 50% valid trials",
+  report_path
+)
+
+# 2.7: Remove subjects with zero Go accuracy
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(Go_acc != 0),
+  "Removed subjects with Go_acc of 0 or NA",
+  report_path
+)
+
+# 2.8: Remove subjects with zero No-Go accuracy
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(Nogo_acc != 0),
+  "Removed subjects with Nogo_acc of 0",
+  report_path
+)
+
+# 2.9: Remove subjects with Go accuracy <= 20% (likely did not understand the task)
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(Go_acc > 0.2),
+  "Removed subjects with Go_acc <= 20% (non-compliant)",
+  report_path
+)
+
+# 2.10: Remove subjects with Go accuracy <= 20% (likely did not understand the task)
+current_data <- report_step(
+  current_data,
+  current_data %>% filter(Nogo_acc > 0.2),
+  "Removed subjects with Nogo_acc <= 20% (non-compliant)",
+  report_path
+)
+
+# Save the fully cleaned within-subjects data
+write_xlsx(current_data, file.path(output_path, 'gonogo_within.xlsx'))
+cat(sprintf("\nWithin-subjects cleaning complete. Final participant count: %d\n", nrow(current_data)))
+```
+
+# --- Part 3: Between-Subjects Data Cleaning (Outlier Removal) ---
+```{r}
+
+cat("\n--- Part 3: Between-Subjects Cleaning (Outlier Removal by Age Group) ---\n")
+write("\n--- Between-Subjects Cleaning ---\n", file = report_path, append = TRUE)
+
+data_before_outliers <- read_excel(file.path(output_path, 'gonogo_within.xlsx'))
+
+# Define age group bins
+binEdges <- 11:18
+data_before_outliers <- data_before_outliers %>% 
+  mutate(ageGroups = cut(Age_year, breaks = binEdges, right = TRUE, include.lowest = TRUE, labels = paste(binEdges[-length(binEdges)], binEdges[-1], sep="-")))
+
+# Identify outliers based on GNG_acc (beyond 3 SD from the age group mean)
+outlier_data <- data_before_outliers %>%
+  group_by(ageGroups) %>%
+  mutate(
+    mean_GNG_acc = mean(GNG_acc, na.rm = TRUE),
+    sd_GNG_acc = sd(GNG_acc, na.rm = TRUE),
+    is_outlier = (mean_GNG_acc - GNG_acc) > 3 * sd_GNG_acc
+  ) %>%
+  ungroup()
+
+# Report removed outliers for each age group to the report file
+outlier_report <- outlier_data %>%
+  filter(is_outlier) %>%
+  count(ageGroups, .drop = FALSE)
+for (i in 1:nrow(outlier_report)) {
+  report_line <- sprintf("Removed GNG_acc outliers (Age = %s): %d", outlier_report$ageGroups[i], outlier_report$n[i])
+  write(report_line, file = report_path, append = TRUE)
+}
+
+# Remove the outliers from the dataset
+data_after_outliers <- outlier_data %>% filter(!is_outlier)
+
+# Report the total number of outliers removed
+removed_outlier_count <- sum(outlier_report$n)
+cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed GNG_acc outliers (>3 SD from age group mean)", removed_outlier_count, nrow(data_after_outliers)))
+
+# Clean up temporary columns and save the result
+final_between_data <- data_after_outliers %>% select(-mean_GNG_acc, -sd_GNG_acc, -is_outlier, -ageGroups)
+write_xlsx(final_between_data, file.path(output_path, 'gonogo_between.xlsx'))
+cat(sprintf("Between-subjects cleaning complete. Final participant count: %d\n", nrow(final_between_data)))
+```
+
+# --- Part 4: Calculate Dependent Variables and Final Cleaning ---
+
+```{r}
+
+cat("\n--- Part 4: Dependent Variable Calculation and Final Outlier Removal ---\n")
+write("\n--- Final Cleaning on Dependent Variables ---\n", file = report_path, append = TRUE)
+
+GonogoTable <- read_excel(file.path(output_path, 'gonogo_between.xlsx'))
+
+# Convert 'Age' column to numeric type
+GonogoTable$Age <- as.numeric(GonogoTable$Age)
+
+# Calculate Coefficient of Variation (CV)
+overall_mean_rt <- mean(GonogoTable$Mean_RT, na.rm = TRUE)
+GonogoTable$CV <- GonogoTable$Go_rt_sd / overall_mean_rt
+
+# Calculate Commission Error (CE)
+GonogoTable$CE <- 1 - GonogoTable$Nogo_acc
+
+# Adjust accuracy rates to avoid values of 0 or 1 for d-prime calculation
+epsilon <- 0.5 / 100
+GonogoTable <- GonogoTable %>%
+  mutate(
+    Go_acc_adj = pmin(pmax(Go_acc, epsilon), 1 - epsilon),
+    Nogo_acc_adj = pmin(pmax(Nogo_acc, epsilon), 1 - epsilon)
+  )
+
+# Calculate d-prime (Signal Detection Theory measure)
+GonogoTable$d_prime <- qnorm(GonogoTable$Go_acc_adj) - qnorm(1 - GonogoTable$Nogo_acc_adj)
+
+# Calculate Inverse Efficiency Score (IES), converted to seconds
+GonogoTable <- GonogoTable %>%
+  mutate(
+    IES_all = (Mean_RT / GNG_acc) / 1000,
+    IES_go = (Mean_RT / Go_acc) / 1000
+  )
+cat("Step 4.1: Dependent variables (CV, CE, d', IES) calculated.\n")
+
+# Remove outliers based on d-prime score by age group
+GonogoTable <- GonogoTable %>%
+  mutate(ageGroups = cut(Age_year, breaks = binEdges, right = TRUE, include.lowest = TRUE, labels = paste(binEdges[-length(binEdges)], binEdges[-1], sep="-")))
+
+final_dprime_data <- GonogoTable %>%
+  group_by(ageGroups) %>%
+  mutate(
+    mean_d_prime = mean(d_prime, na.rm = TRUE),
+    std_d_prime = sd(d_prime, na.rm = TRUE),
+    is_outlier_dprime = (mean_d_prime - d_prime) > 3 * std_d_prime
+  ) %>%
+  ungroup()
+
+# Report removed d-prime outliers to the report file
+dprime_outlier_report <- final_dprime_data %>%
+  filter(is_outlier_dprime) %>%
+  count(ageGroups, .drop = FALSE)
+for (i in 1:nrow(dprime_outlier_report)) {
+  report_line <- sprintf("Removed d-prime outliers (Age = %s): %d", dprime_outlier_report$ageGroups[i], dprime_outlier_report$n[i])
+  write(report_line, file = report_path, append = TRUE)
+}
+
+# Remove d-prime outliers from the final dataset
+final_dprime_filtered <- final_dprime_data %>% filter(!is_outlier_dprime)
+
+# Report total d-prime outliers removed to console
+removed_dprime_count <- sum(dprime_outlier_report$n)
+cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed d-prime outliers (>3 SD from age group mean)", removed_dprime_count, nrow(final_dprime_filtered)))
+
+# Save the final datasets
+# 1. Dataset with all dependent variables BEFORE final outlier removal
+write_xlsx(GonogoTable %>% select(-ageGroups), file.path(output_path, 'gonogo_dependent.xlsx'))
+# 2. Final dataset AFTER d-prime outlier removal
+write_xlsx(final_dprime_filtered %>% select(-ageGroups, -mean_d_prime, -std_d_prime, -is_outlier_dprime), 
+           file.path(output_path, 'gonogo_dependent_d_prime.xlsx'))
+
+cat("\n--- Data processing complete. --- \n")
+cat(sprintf("Final dataset contains %d participants. Check the output folder for results and the report file.\n", nrow(final_dprime_filtered)))
+```
+

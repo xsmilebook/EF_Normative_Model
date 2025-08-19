@@ -1,0 +1,302 @@
+---
+title: "oneback_clean"
+output: html_document
+---
+
+```{r}
+# Load required packages
+library(readxl)
+library(writexl)
+library(dplyr)
+library(stringr)
+```
+
+# --- Step 1: QC and Within-Subjects Data Processing ---
+```{r}
+cat("--- Step 1: Starting Within-Subjects Data Processing ---\n")
+
+# --- Part 1.A: Trial-level Data Extraction and Calculation ---
+
+# Define file paths
+datapath <- 'D:/datasets/yunfu/raw_data/oneback_data/raw_data'
+output_dir <- 'D:/datasets/yunfu/raw_data/oneback_data/cleaned_data'
+age_data_path <- 'D:/datasets/yunfu/raw_data/yunfu_agebyID.xlsx'
+report_path <- file.path(output_dir, 'oneback_report.txt')
+
+# Create output directory if it doesn't exist
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+}
+
+# Get a list of all .xlsx files in the directory
+files <- list.files(datapath, pattern = "*.xlsx", full.names = TRUE)
+
+new_column_names <- c(
+  "task_name", "id", "name", "gender", "age", "game", "school", 
+  "grade", "class", "timeall", "hand", "trial", "block", 
+  "view_point", "vptime", "materials", "stimulitime", "blank", 
+  "blanktime", "pressbutton", "correct", "RT", "ACC", "run"
+)
+
+# Initialize a list to store results for each participant
+results_list <- list()
+cat("Starting to process raw data files...\n")
+
+# Loop through each data file
+for (file_path in files) {
+  # --- [MODIFIED] Print the name of the file being processed ---
+  cat(sprintf("Processing file: %s\n", basename(file_path)))
+  
+  # Read the Excel data sheet, suppressing default messages
+  data_table <- suppressMessages(read_excel(file_path, skip = 2, col_names = FALSE))
+  
+  # --- [NEW] Defensive Check: Ensure the column count is correct before proceeding ---
+  if (ncol(data_table) != length(new_column_names)) {
+    cat(sprintf("  --> WARNING: Skipping this file. It has %d columns, but %d were expected.\n",
+                ncol(data_table), length(new_column_names)))
+    next # Skip to the next file in the loop
+  }
+  
+  # Assign the column names
+  colnames(data_table) <- new_column_names
+  
+  # --- [NEW] Check for valid IDs and report participant count per file ---
+  if (!("id" %in% names(data_table)) || all(is.na(data_table$id))) {
+      cat(sprintf("  --> WARNING: Skipping this file. It does not contain any valid participant IDs in the 'id' column.\n"))
+      next
+  }
+
+  # Get unique participant IDs from the current file, preserving order
+  unique_ids <- unique(data_table$id)
+  cat(sprintf("  - Found %d unique participant(s) in this file.\n", length(unique_ids)))
+  
+  # Loop through each unique participant
+  for (current_id in unique_ids) {
+    # Filter data for the current participant
+    subjdata_1back <- data_table %>% filter(id == current_id)
+    
+    # Extract formal trials (trials containing "正式")
+    formaldata <- subjdata_1back %>% filter(str_detect(trial, "正式"))
+    
+    # Select trials from the 2nd to the 59th position
+    formaldata_1back <- formaldata[2:min(59, nrow(formaldata)), ]
+    
+    # Check if there is any data left to process
+    if (nrow(formaldata_1back) == 0) {
+      next # Skip this participant if they have no valid formal trials in the specified range
+    }
+    
+    # Convert RT to numeric and filter out trials outside the 200-2000ms range
+    formaldata_1back$RT <- as.numeric(formaldata_1back$RT)
+    formaldata_RTfiltered <- formaldata_1back %>% 
+      filter(RT > 200 & RT < 2001)
+    
+    # Calculate the number and percentage of trials removed due to RT filtering
+    # Based on an expected 58 trials (59 - 2 + 1)
+    fast_trials <- 58 - nrow(formaldata_RTfiltered)
+    deleted_trials_percent <- fast_trials / 58
+    
+    # --- Calculate Performance Metrics ---
+    
+    # Overall accuracy
+    oneback_acc <- mean(formaldata_RTfiltered$ACC == "正确", na.rm = TRUE)
+    
+    # Performance on "same" trials (correct response 'F')
+    same_trials <- formaldata_RTfiltered %>% filter(correct == 'F')
+    same_acc <- mean(same_trials$ACC == "正确", na.rm = TRUE)
+    
+    # Performance on "different" trials (correct response 'J')
+    diff_trials <- formaldata_RTfiltered %>% filter(correct == 'J')
+    diff_acc <- mean(diff_trials$ACC == "正确", na.rm = TRUE)
+    
+    # Percentage of removed trials for each condition (based on expected counts)
+    deleted_same_trials_percent <- (21 - nrow(same_trials)) / 21
+    deleted_diff_trials_percent <- (37 - nrow(diff_trials)) / 37
+    
+    # Mean RT for correct trials only
+    correct_trials_filtered <- formaldata_RTfiltered %>% filter(ACC == "正确")
+    mean_RT <- mean(correct_trials_filtered$RT, na.rm = TRUE)
+    same_rt <- mean(correct_trials_filtered$RT[correct_trials_filtered$correct == 'F'], na.rm = TRUE)
+    diff_rt <- mean(correct_trials_filtered$RT[correct_trials_filtered$correct == 'J'], na.rm = TRUE)
+    
+    # Performance on the last 8 test trials
+    test_trials <- subjdata_1back %>% filter(str_detect(trial, '测试'))
+    last8_test_trials <- tail(test_trials, 8)
+    test_acc <- mean(last8_test_trials$ACC == "正确", na.rm = TRUE)
+    test_RT <- mean(as.numeric(last8_test_trials$RT), na.rm = TRUE)
+    
+    # Extract 'ptime' from test trial name
+    ptime <- NA
+    for (test_trial_str in last8_test_trials$trial) {
+      ptime_match <- str_match(test_trial_str, "测试-(\\d)")
+      if (!is.na(ptime_match[1, 2])) {
+        ptime <- as.numeric(ptime_match[1, 2])
+        break
+      }
+    }
+    
+    # Extract participant demographic information
+    name <- subjdata_1back$name[1]
+    gender <- subjdata_1back$gender[1]
+    age <- subjdata_1back$age[1]
+    school <- subjdata_1back$school[1]
+    grade <- subjdata_1back$grade[1]
+    hand <- subjdata_1back$hand[1]
+    
+    # Append the results for this participant to the list
+    results_list[[length(results_list) + 1]] <- data.frame(
+      ID = current_id, Name = name, Gender = gender, Age = age, School = school, Grade = grade, Hand = hand,
+      Oneback_acc = oneback_acc, Mean_RT = mean_RT,
+      Same_acc = same_acc, Same_rt = same_rt,
+      Diff_acc = diff_acc, Diff_rt = diff_rt,
+      Test_acc = test_acc, Test_RT = test_RT, Ptime = ptime,
+      Deleted_Trials_Percent = deleted_trials_percent,
+      Deleted_Same_Trials_Percent = deleted_same_trials_percent,
+      Deleted_Diff_Trials_Percent = deleted_diff_trials_percent
+    )
+  }
+}
+
+# Combine all participant results into a single data frame
+ResultTable <- bind_rows(results_list)
+
+# Save the initial processed data
+write_xlsx(ResultTable, file.path(output_dir, '1back_clean.xlsx'))
+cat(sprintf("\nInitial data processing complete. Found %d unique participants in total from all valid files.\n", nrow(ResultTable)))
+```
+
+# --- Part 1.B: Participant-level Filtering (Exclusion Criteria) ---
+```{r}
+
+# Read the processed data
+data <- read_excel(file.path(output_dir, '1back_clean.xlsx'))
+
+# Step 1.1: Remove duplicate participant IDs, keeping the first occurrence
+initial_count <- nrow(data)
+cleanedData <- data %>% distinct(ID, .keep_all = TRUE)
+removed_count <- initial_count - nrow(cleanedData)
+cat(sprintf("Step 1.1: Removed duplicate IDs.                | Removed: %4d | Remaining: %4d\n", removed_count, nrow(cleanedData)))
+
+# Save the deduplicated data
+write_xlsx(cleanedData, file.path(output_dir, '1back_cleaned.xlsx'))
+
+# Step 1.2: Merge with age data
+table1 <- read_excel(file.path(output_dir, '1back_cleaned.xlsx'))
+table2 <- read_excel(age_data_path)
+table2_sub <- table2 %>% select(ID, Name, Age_day, Age_month, Age_year)
+combinetable <- left_join(table1, table2_sub, by = c("ID", "Name"))
+
+# Save the merged data
+write_xlsx(combinetable, file.path(output_dir, '1back_clean_combineage.xlsx'))
+cat("Step 1.2: Merged with age data successfully.\n\n")
+
+cat("--- Starting Participant Exclusion Process ---\n")
+
+# Initialize the report file
+if (file.exists(report_path)) file.remove(report_path)
+file.create(report_path)
+write("Data Cleaning Report: 1-Back Task", file = report_path, append = FALSE)
+write("-------------------------------------\n", file = report_path, append = TRUE)
+
+# Helper function to report cleaning steps
+report_step <- function(data_before, data_after, reason, report_file) {
+  removed <- nrow(data_before) - nrow(data_after)
+  remaining <- nrow(data_after)
+  cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", reason, removed, remaining))
+  write(sprintf("%s: %d", reason, removed), file = report_file, append = TRUE)
+  return(data_after)
+}
+
+# The main data frame for cleaning
+current_data <- combinetable
+
+# Apply filtering criteria sequentially
+current_data <- report_step(current_data, current_data %>% filter(School != '清华大学西区'), "Removed test subjects (school = '清华大学西区')", report_path)
+current_data <- report_step(current_data, current_data %>% filter(!is.na(Age_year) & !is.na(as.numeric(Age))), "Removed subjects with missing age data", report_path)
+current_data$Age <- as.numeric(current_data$Age)
+current_data <- report_step(current_data, current_data %>% filter(abs(Age_year - Age) <= 1), "Removed subjects with inconsistent age records", report_path)
+current_data <- report_step(current_data, current_data %>% filter(Age_year > 11 & Age_year <= 18), "Removed subjects outside of age range (11-18 years)", report_path)
+current_data <- report_step(current_data, current_data %>% filter(!is.na(Gender) & Gender != ""), "Removed subjects with missing gender data", report_path)
+current_data <- report_step(current_data, current_data %>% filter(Deleted_Trials_Percent <= 0.5), "Removed subjects with < 50% valid trials", report_path)
+current_data <- report_step(current_data, current_data %>% filter(!is.na(Oneback_acc) & Oneback_acc > 0), "Removed subjects with Oneback_acc of 0 or NA", report_path)
+current_data <- report_step(current_data, current_data %>% filter(!is.na(Same_acc) & Same_acc > 0), "Removed subjects with Same_acc of 0 or NA", report_path)
+current_data <- report_step(current_data, current_data %>% filter(!is.na(Diff_acc) & Diff_acc > 0), "Removed subjects with Diff_acc of 0 or NA", report_path)
+current_data <- report_step(current_data, current_data %>% filter(!(Same_acc <= 0.2 | Diff_acc <= 0.2)), "Removed subjects who did not understand the rule", report_path)
+
+# Save the final within-subjects cleaned data
+write_xlsx(current_data, file.path(output_dir, '1back_within.xlsx'))
+cat(sprintf("\nWithin-subjects cleaning complete. Final participant count: %d\n", nrow(current_data)))
+```
+
+# --- Step 2: Between-Subjects Cleaning (Outlier Removal) ---
+```{r}
+cat("\n--- Step 2: Starting Between-Subjects Cleaning (Outlier Removal) ---\n")
+write("\n--- Between-Subjects Cleaning ---\n", file = report_path, append = TRUE)
+
+data_before_outliers <- read_excel(file.path(output_dir, '1back_within.xlsx'))
+
+# Create age groups
+binEdges <- 11:18
+data_before_outliers <- data_before_outliers %>% 
+  mutate(ageGroups = cut(Age_year, breaks = binEdges, right = TRUE, include.lowest = TRUE, labels = paste(binEdges[-length(binEdges)], binEdges[-1], sep="-")))
+
+# Identify outliers based on Oneback_acc (> 3 SD from age group mean)
+outlier_data <- data_before_outliers %>%
+  group_by(ageGroups) %>%
+  mutate(
+    mean_acc = mean(Oneback_acc, na.rm = TRUE),
+    sd_acc = sd(Oneback_acc, na.rm = TRUE),
+    is_outlier = abs(Oneback_acc - mean_acc) > 3 * sd_acc
+  ) %>%
+  ungroup()
+
+# Report removed outliers for each age group
+outlier_report <- outlier_data %>% filter(is_outlier) %>% count(ageGroups, .drop = FALSE)
+for (i in 1:nrow(outlier_report)) {
+  report_line <- sprintf("Removed outliers (Age = %s): %d", outlier_report$ageGroups[i], outlier_report$n[i])
+  write(report_line, file = report_path, append = TRUE)
+}
+
+# Remove the outliers from the dataset
+data_after_outliers <- outlier_data %>% filter(!is_outlier)
+removed_outlier_count <- sum(outlier_report$n)
+cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed Oneback_acc outliers (>3 SD from mean)", removed_outlier_count, nrow(data_after_outliers)))
+
+# Clean up temporary columns and save the result
+final_between_data <- data_after_outliers %>% select(-mean_acc, -sd_acc, -is_outlier, -ageGroups)
+write_xlsx(final_between_data, file.path(output_dir, '1back_between.xlsx'))
+cat(sprintf("Between-subjects cleaning complete. Final participant count: %d\n", nrow(final_between_data)))
+```
+
+# --- Step 3: Calculate Dependent Variables ---
+```{r}
+cat("\n--- Step 3: Calculating Dependent Variables ---\n")
+
+onebackTable <- read_excel(file.path(output_dir, '1back_between.xlsx'))
+onebackTable$Age <- as.numeric(onebackTable$Age)
+
+# Adjust accuracy rates to avoid 0 or 1 for d-prime calculation
+epsilon <- 0.5 / 58 # Small constant based on number of trials
+onebackTable <- onebackTable %>%
+  mutate(
+    # Same_acc is the Hit Rate
+    Same_acc_adj = pmin(pmax(Same_acc, epsilon), 1 - epsilon),
+    # 1 - Diff_acc is the False Alarm Rate
+    Diff_acc_adj = pmin(pmax(Diff_acc, epsilon), 1 - epsilon),
+    
+    # Calculate d-prime
+    d_prime = qnorm(Same_acc_adj) - qnorm(1 - Diff_acc_adj),
+    
+    # Calculate Inverse Efficiency Scores (IES)
+    IES_all = Mean_RT / Oneback_acc,
+    IES_same = Same_rt / Same_acc,
+    IES_diff = Diff_rt / Diff_acc
+  ) %>%
+  select(-Same_acc_adj, -Diff_acc_adj) # Remove temporary adjusted columns
+
+# Save the final table with all dependent variables
+write_xlsx(onebackTable, file.path(output_dir, '1back_dependent.xlsx'))
+cat("Dependent variables (d', IES) calculated and saved.\n")
+cat("\n--- Data processing complete. ---\n")
+```
+

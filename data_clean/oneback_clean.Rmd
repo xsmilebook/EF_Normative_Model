@@ -203,14 +203,20 @@ report_step <- function(data_before, data_after, reason, report_file) {
   removed <- nrow(data_before) - nrow(data_after)
   remaining <- nrow(data_after)
   cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", reason, removed, remaining))
-  write(sprintf("%s: %d", reason, removed), file = report_file, append = TRUE)
+  write(sprintf("%s: %d, %d", reason, removed, remaining), file = report_file, append = TRUE)
   return(data_after)
 }
 
 # The main data frame for cleaning
 current_data <- combinetable
 
+
 # Apply filtering criteria sequentially
+current_data <- report_step(current_data, current_data %>% filter(!is.na(Oneback_acc)), "Removed subjects with Oneback_acc of NA", report_path)
+current_data <- report_step(current_data, current_data %>% filter(!is.na(Same_acc)), "Removed subjects with Same_acc of NA", report_path)
+current_data <- report_step(current_data, current_data %>% filter(!is.na(Diff_acc)), "Removed subjects with Diff_acc of NA", report_path)
+
+
 current_data <- report_step(current_data, current_data %>% filter(School != '清华大学西区'), "Removed test subjects (school = '清华大学西区')", report_path)
 current_data <- report_step(current_data, current_data %>% filter(!is.na(Age_year) & !is.na(as.numeric(Age))), "Removed subjects with missing age data", report_path)
 current_data$Age <- as.numeric(current_data$Age)
@@ -218,9 +224,9 @@ current_data <- report_step(current_data, current_data %>% filter(abs(Age_year -
 current_data <- report_step(current_data, current_data %>% filter(Age_year > 11 & Age_year <= 18), "Removed subjects outside of age range (11-18 years)", report_path)
 current_data <- report_step(current_data, current_data %>% filter(!is.na(Gender) & Gender != ""), "Removed subjects with missing gender data", report_path)
 current_data <- report_step(current_data, current_data %>% filter(Deleted_Trials_Percent <= 0.5), "Removed subjects with < 50% valid trials", report_path)
-current_data <- report_step(current_data, current_data %>% filter(!is.na(Oneback_acc) & Oneback_acc > 0), "Removed subjects with Oneback_acc of 0 or NA", report_path)
-current_data <- report_step(current_data, current_data %>% filter(!is.na(Same_acc) & Same_acc > 0), "Removed subjects with Same_acc of 0 or NA", report_path)
-current_data <- report_step(current_data, current_data %>% filter(!is.na(Diff_acc) & Diff_acc > 0), "Removed subjects with Diff_acc of 0 or NA", report_path)
+current_data <- report_step(current_data, current_data %>% filter(Oneback_acc > 0), "Removed subjects with Oneback_acc of 0", report_path)
+current_data <- report_step(current_data, current_data %>% filter(Same_acc > 0), "Removed subjects with Same_acc of 0", report_path)
+current_data <- report_step(current_data, current_data %>% filter(Diff_acc > 0), "Removed subjects with Diff_acc of 0", report_path)
 current_data <- report_step(current_data, current_data %>% filter(!(Same_acc <= 0.2 | Diff_acc <= 0.2)), "Removed subjects who did not understand the rule", report_path)
 
 # Save the final within-subjects cleaned data
@@ -261,7 +267,7 @@ for (i in 1:nrow(outlier_report)) {
 data_after_outliers <- outlier_data %>% filter(!is_outlier)
 removed_outlier_count <- sum(outlier_report$n)
 cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed Oneback_acc outliers (>3 SD from mean)", removed_outlier_count, nrow(data_after_outliers)))
-
+write(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed Oneback_acc outliers (>3 SD from mean)", removed_outlier_count, nrow(data_after_outliers)), file = report_path, append = TRUE)
 # Clean up temporary columns and save the result
 final_between_data <- data_after_outliers %>% select(-mean_acc, -sd_acc, -is_outlier, -ageGroups)
 write_xlsx(final_between_data, file.path(output_dir, '1back_between.xlsx'))

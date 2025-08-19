@@ -276,34 +276,60 @@ binEdges <- 11:18
 data_before_outliers <- data_before_outliers %>% 
   mutate(ageGroups = cut(Age_year, breaks = binEdges, right = TRUE, include.lowest = TRUE, labels = paste(binEdges[-length(binEdges)], binEdges[-1], sep="-")))
 
-# Identify outliers based on GNG_acc (beyond 3 SD from the age group mean)
+# --- [CORRECTED] Step 1: Identify outliers using absolute difference ---
+# The outlier definition should use abs() to catch values both above and below the mean.
 outlier_data <- data_before_outliers %>%
   group_by(ageGroups) %>%
   mutate(
     mean_GNG_acc = mean(GNG_acc, na.rm = TRUE),
     sd_GNG_acc = sd(GNG_acc, na.rm = TRUE),
-    is_outlier = (mean_GNG_acc - GNG_acc) > 3 * sd_GNG_acc
+    is_outlier = abs(GNG_acc - mean_GNG_acc) > 3 * sd_GNG_acc
   ) %>%
   ungroup()
 
-# Report removed outliers for each age group to the report file
-outlier_report <- outlier_data %>%
-  filter(is_outlier) %>%
-  count(ageGroups, .drop = FALSE)
+# --- [CORRECTED] Step 2: Generate an accurate report ---
+# We calculate the statistics on the original data group, not on the outliers themselves.
+# This gives us the TRUE mean and sd that were used for the outlier definition.
+outlier_report <- data_before_outliers %>%
+  group_by(ageGroups) %>%
+  summarise(
+    # Calculate the true mean and sd for the ENTIRE age group
+    mean_for_report = mean(GNG_acc, na.rm = TRUE),
+    sd_for_report = sd(GNG_acc, na.rm = TRUE),
+    # Directly count the number of outliers within each group
+    n_outliers = sum(abs(GNG_acc - mean(GNG_acc, na.rm = TRUE)) > 3 * sd(GNG_acc, na.rm = TRUE), na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  # Only keep the groups that actually have outliers for a cleaner report
+  filter(n_outliers > 0)
+
+# --- [CORRECTED] Step 3: Write the accurate report to the file ---
+# The loop now uses the correctly calculated statistics from outlier_report.
 for (i in 1:nrow(outlier_report)) {
-  report_line <- sprintf("Removed GNG_acc outliers (Age = %s): %d", outlier_report$ageGroups[i], outlier_report$n[i])
+  report_line <- sprintf("Removed GNG_acc outliers (Age = %s): %d | Group Mean=%.4f, Group SD=%.4f", 
+                        outlier_report$ageGroups[i], 
+                        outlier_report$n_outliers[i],
+                        outlier_report$mean_for_report[i],
+                        outlier_report$sd_for_report[i])
+  
+  cat(report_line, "\n") # Also print to console for immediate feedback
   write(report_line, file = report_path, append = TRUE)
 }
 
-# Remove the outliers from the dataset
+# --- Step 4: Remove the outliers from the main dataset ---
+# This part remains the same, as the 'is_outlier' column in 'outlier_data' is correct.
 data_after_outliers <- outlier_data %>% filter(!is_outlier)
 
 # Report the total number of outliers removed
-removed_outlier_count <- sum(outlier_report$n)
-cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed GNG_acc outliers (>3 SD from age group mean)", removed_outlier_count, nrow(data_after_outliers)))
+removed_outlier_count <- sum(outlier_report$n_outliers)
+cat(sprintf("\n%-50s | Removed: %4d | Remaining: %4d\n", 
+            "Total GNG_acc outliers (>3 SD from age group mean)", 
+            removed_outlier_count, 
+            nrow(data_after_outliers)))
 
 # Clean up temporary columns and save the result
-final_between_data <- data_after_outliers %>% select(-mean_GNG_acc, -sd_GNG_acc, -is_outlier, -ageGroups)
+final_between_data <- data_after_outliers %>% 
+  select(-mean_GNG_acc, -sd_GNG_acc, -is_outlier, -ageGroups)
 write_xlsx(final_between_data, file.path(output_path, 'gonogo_between.xlsx'))
 cat(sprintf("Between-subjects cleaning complete. Final participant count: %d\n", nrow(final_between_data)))
 ```
@@ -346,41 +372,73 @@ GonogoTable <- GonogoTable %>%
   )
 cat("Step 4.1: Dependent variables (CV, CE, d', IES) calculated.\n")
 
-# Remove outliers based on d-prime score by age group
+# Add age groups to the table for outlier analysis
+binEdges <- 11:18 # Make sure this is defined if it's not carried over
 GonogoTable <- GonogoTable %>%
   mutate(ageGroups = cut(Age_year, breaks = binEdges, right = TRUE, include.lowest = TRUE, labels = paste(binEdges[-length(binEdges)], binEdges[-1], sep="-")))
 
+
+# --- [CORRECTED] Step 4.2: Identify d-prime outliers using absolute difference ---
 final_dprime_data <- GonogoTable %>%
   group_by(ageGroups) %>%
   mutate(
     mean_d_prime = mean(d_prime, na.rm = TRUE),
     std_d_prime = sd(d_prime, na.rm = TRUE),
-    is_outlier_dprime = (mean_d_prime - d_prime) > 3 * std_d_prime
+    is_outlier_dprime = abs(d_prime - mean_d_prime) > 3 * std_d_prime
   ) %>%
   ungroup()
 
-# Report removed d-prime outliers to the report file
-dprime_outlier_report <- final_dprime_data %>%
-  filter(is_outlier_dprime) %>%
-  count(ageGroups, .drop = FALSE)
+
+# --- [CORRECTED] Step 4.3: Generate an accurate report for d-prime outliers ---
+dprime_outlier_report <- GonogoTable %>%
+  group_by(ageGroups) %>%
+  summarise(
+    # Calculate the true mean and sd for the ENTIRE age group
+    mean_for_report = mean(d_prime, na.rm = TRUE),
+    sd_for_report = sd(d_prime, na.rm = TRUE),
+    # Directly count the number of d-prime outliers within each group
+    n_outliers = sum(abs(d_prime - mean(d_prime, na.rm = TRUE)) > 3 * sd(d_prime, na.rm = TRUE), na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  # Only keep the groups that actually have outliers for a cleaner report
+  filter(n_outliers > 0)
+
+
+# --- [CORRECTED] Step 4.4: Write the accurate d-prime report to the file ---
 for (i in 1:nrow(dprime_outlier_report)) {
-  report_line <- sprintf("Removed d-prime outliers (Age = %s): %d", dprime_outlier_report$ageGroups[i], dprime_outlier_report$n[i])
+  report_line <- sprintf("Removed d-prime outliers (Age = %s): %d | Group Mean=%.4f, Group SD=%.4f", 
+                        dprime_outlier_report$ageGroups[i], 
+                        dprime_outlier_report$n_outliers[i],
+                        dprime_outlier_report$mean_for_report[i],
+                        dprime_outlier_report$sd_for_report[i])
+  
+  cat(report_line, "\n") # Also print to console for immediate feedback
   write(report_line, file = report_path, append = TRUE)
 }
 
-# Remove d-prime outliers from the final dataset
+
+# --- Step 4.5: Remove the d-prime outliers from the final dataset ---
 final_dprime_filtered <- final_dprime_data %>% filter(!is_outlier_dprime)
 
 # Report total d-prime outliers removed to console
-removed_dprime_count <- sum(dprime_outlier_report$n)
-cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed d-prime outliers (>3 SD from age group mean)", removed_dprime_count, nrow(final_dprime_filtered)))
+removed_dprime_count <- sum(dprime_outlier_report$n_outliers, na.rm=TRUE)
+cat(sprintf("\n%-50s | Removed: %4d | Remaining: %4d\n", 
+            "Total d-prime outliers (>3 SD from age group mean)", 
+            removed_dprime_count, 
+            nrow(final_dprime_filtered)))
 
-# Save the final datasets
+
+# --- Step 4.6: Save the final datasets ---
+
 # 1. Dataset with all dependent variables BEFORE final outlier removal
+# We remove the temporary 'ageGroups' column before saving
 write_xlsx(GonogoTable %>% select(-ageGroups), file.path(output_path, 'gonogo_dependent.xlsx'))
+
 # 2. Final dataset AFTER d-prime outlier removal
+# We remove all temporary columns used for the calculation
 write_xlsx(final_dprime_filtered %>% select(-ageGroups, -mean_d_prime, -std_d_prime, -is_outlier_dprime), 
            file.path(output_path, 'gonogo_dependent_d_prime.xlsx'))
+
 
 cat("\n--- Data processing complete. --- \n")
 cat(sprintf("Final dataset contains %d participants. Check the output folder for results and the report file.\n", nrow(final_dprime_filtered)))

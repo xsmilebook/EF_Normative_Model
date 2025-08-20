@@ -241,13 +241,27 @@ write("\n--- Between-Subjects Cleaning ---\n", file = report_path, append = TRUE
 
 data_before_outliers <- read_excel(file.path(output_dir, '1back_within.xlsx'))
 
+# --- [NEW] Defensive Check: Ensure all participants are within the expected age range ---
+# This prevents the creation of 'NA' age groups by the cut() function.
+initial_rows <- nrow(data_before_outliers)
+data_before_outliers <- data_before_outliers %>% 
+  filter(!is.na(Age_year) & Age_year >= 11 & Age_year <= 18)
+rows_removed <- initial_rows - nrow(data_before_outliers)
+if (rows_removed > 0) {
+  cat(sprintf("INFO: Removed %d rows with 'Age_year' outside [11, 18] before grouping.\n", rows_removed))
+  write(sprintf("INFO: Removed %d rows with 'Age_year' outside [11, 18] before grouping.", rows_removed), file = report_path, append = TRUE)
+}
+
 # Create age groups
 binEdges <- 11:18
 data_before_outliers <- data_before_outliers %>% 
   mutate(ageGroups = cut(Age_year, breaks = binEdges, right = TRUE, include.lowest = TRUE, labels = paste(binEdges[-length(binEdges)], binEdges[-1], sep="-")))
 
-# Identify outliers based on Oneback_acc (> 3 SD from age group mean)
+# --- Step 2.1: Identify outliers based on Oneback_acc ---
+# This table contains ALL participants, with new columns indicating group stats and outlier status.
 outlier_data <- data_before_outliers %>%
+  # Filter out NA groups just in case any slip through, ensuring safe calculations.
+  filter(!is.na(ageGroups)) %>%
   group_by(ageGroups) %>%
   mutate(
     mean_acc = mean(Oneback_acc, na.rm = TRUE),
@@ -256,18 +270,64 @@ outlier_data <- data_before_outliers %>%
   ) %>%
   ungroup()
 
-# Report removed outliers for each age group
-outlier_report <- outlier_data %>% filter(is_outlier) %>% count(ageGroups, .drop = FALSE)
-for (i in 1:nrow(outlier_report)) {
-  report_line <- sprintf("Removed outliers (Age = %s): %d", outlier_report$ageGroups[i], outlier_report$n[i])
-  write(report_line, file = report_path, append = TRUE)
+# --- Step 2.2: Generate a summary report ---
+# This summary table is used to guide the detailed reporting loop.
+outlier_summary <- outlier_data %>%
+  group_by(ageGroups) %>%
+  summarise(
+    mean_for_report = first(mean_acc), # Use the already calculated mean
+    sd_for_report = first(sd_acc),     # Use the already calculated sd
+    n_outliers = sum(is_outlier, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  filter(n_outliers > 0)
+
+# --- [MODIFIED] Step 2.3: Write a DETAILED report for each outlier ---
+cat("\n--- Detailed Oneback_acc Outlier Report ---\n")
+for (i in 1:nrow(outlier_summary)) {
+  
+  # Print Summary Line
+  summary_line <- sprintf("Age Group %s: Found %d outlier(s) | Group Mean=%.4f, Group SD=%.4f", 
+                        outlier_summary$ageGroups[i], 
+                        outlier_summary$n_outliers[i],
+                        outlier_summary$mean_for_report[i],
+                        outlier_summary$sd_for_report[i])
+  
+  cat(summary_line, "\n")
+  write(summary_line, file = report_path, append = TRUE)
+  
+  # Find and List Individual Outliers for the Current Group
+  current_age_group <- outlier_summary$ageGroups[i]
+  individual_outliers <- outlier_data %>%
+    filter(ageGroups == current_age_group & is_outlier == TRUE)
+  
+  write("    Details of removed participants:", file = report_path, append = TRUE)
+    
+  # Loop through each individual outlier and print their details
+  for (j in 1:nrow(individual_outliers)) {
+    outlier_detail_line <- sprintf("    -> Removed Participant ID: %s, Oneback_acc: %.4f (Difference from mean: %.2f SDs)",
+                                   individual_outliers$ID[j],
+                                   individual_outliers$Oneback_acc[j],
+                                   abs(individual_outliers$Oneback_acc[j] - individual_outliers$mean_acc[j]) / individual_outliers$sd_acc[j])
+    
+    cat(outlier_detail_line, "\n")
+    write(outlier_detail_line, file = report_path, append = TRUE)
+  }
 }
 
-# Remove the outliers from the dataset
+# --- Step 2.4: Finalize and save the cleaned data ---
+# Remove the outliers from the main dataset
 data_after_outliers <- outlier_data %>% filter(!is_outlier)
-removed_outlier_count <- sum(outlier_report$n)
-cat(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed Oneback_acc outliers (>3 SD from mean)", removed_outlier_count, nrow(data_after_outliers)))
-write(sprintf("%-50s | Removed: %4d | Remaining: %4d\n", "Removed Oneback_acc outliers (>3 SD from mean)", removed_outlier_count, nrow(data_after_outliers)), file = report_path, append = TRUE)
+removed_outlier_count <- sum(outlier_summary$n_outliers, na.rm = TRUE)
+
+# Report total number of outliers removed
+total_summary_line <- sprintf("\n%-50s | Removed: %4d | Remaining: %4d", 
+                              "Total Oneback_acc outliers (>3 SD from mean)", 
+                              removed_outlier_count, 
+                              nrow(data_after_outliers))
+cat(total_summary_line, "\n")
+write(total_summary_line, file = report_path, append = TRUE)
+
 # Clean up temporary columns and save the result
 final_between_data <- data_after_outliers %>% select(-mean_acc, -sd_acc, -is_outlier, -ageGroups)
 write_xlsx(final_between_data, file.path(output_dir, '1back_between.xlsx'))

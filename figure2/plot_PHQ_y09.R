@@ -1,39 +1,15 @@
-# 清理环境
 rm(list=ls())
 
-# 加载所需包
 library(readxl)
 library(tidyverse)
 library(mgcv)
 library(psych)
 library(openxlsx)
-# 新函数所需的包
 library(ecostats)
 library(pbkrtest)
 
-# ===================================================================
-# 函数定义：此处省略您提供的两个大型函数 anovaPB_ext 和 gam.fit.Independent.var
-# 在本次分析中，这两个函数不会被用到，但我们保留它们以防万一
-# ===================================================================
-
-# modified anovaPB: return distribution of simulated statistics
-anovaPB_ext <- function(objectNull, object, n.sim = 999, 
-                        colRef = switch(class(object)[1], "lm" = 5, "lmerMod" = 6, "glmmTMB" = 6, 4),
-                        rowRef = 2, ncpus = NULL, ...) {
-  # ... 函数体和您提供的一样 ...
-}
-
-gam.fit.Independent.var <- function(dependentvar, dataname, smoothvar, interest.indep.var, covariates, stats_only = FALSE){  
-  # ... 函数体和您提供的一样 ...
-}
-
-
-# ===================================================================
-# 主要分析流程
-# ===================================================================
 
 # 设置路径
-# ... (您的路径设置代码保持不变) ...
 wd <- getwd()
 if (str_detect(wd, "cuizaixu_lab")){
   datapath <- '/ibmgpfs/cuizaixu_lab/tanlirou1/Yunfu/YF_EF_psy/interfileFolder'
@@ -76,6 +52,10 @@ back2_dev_col <- names(back2_data)[str_ends(names(back2_data), "deviationZ")]
 gngd_analysis_data <- GNGd_data %>% select(x__ID, Age_year, Gender, all_of(gngd_dev_col)) %>% rename(用户ID = x__ID) %>% inner_join(PHQ_data, by = "用户ID")
 back1_analysis_data <- back1_data %>% select(x__ID, Age_year, Gender, all_of(back1_dev_col)) %>% rename(用户ID = x__ID) %>% inner_join(PHQ_data, by = "用户ID")
 back2_analysis_data <- back2_data %>% select(x__ID, Age_year, Gender, all_of(back2_dev_col)) %>% rename(用户ID = x__ID) %>% inner_join(PHQ_data, by = "用户ID")
+
+saveRDS(gngd_analysis_data, file.path(interfileFolder, "gngd_deviation_PHQy09.rds"))
+saveRDS(back1_analysis_data, file.path(interfileFolder, "back1_deviation_PHQy09.rds"))
+saveRDS(back2_analysis_data, file.path(interfileFolder, "back2_deviation_PHQy09.rds"))
 
 # === 按年龄段对 PHQ_y09 进行序数变量分析 ===
 

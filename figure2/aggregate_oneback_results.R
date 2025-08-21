@@ -3,7 +3,11 @@ library(tidyverse)
 library(ggplot2)
 library(patchwork)
 
-# 2. 设置路径 (请确保这里的路径和您生成文件的路径一致)
+# ==============================================================================
+# 2. 设置路径和关键变量
+# +++ 修改点: 定义任务名称，方便以后切换 +++
+task_name <- "oneback" 
+
 wd <- getwd()
 if (str_detect(wd, "cuizaixu_lab")){
   resultFolder_individual <- "/ibmgpfs/cuizaixu_lab/xuhaoshu/datasets/yunfu/results/EF_psy"
@@ -19,18 +23,24 @@ if (str_detect(wd, "cuizaixu_lab")){
 dir.create(resultFolder_final, showWarnings = FALSE, recursive = TRUE)
 dir.create(FigureFolder_final, showWarnings = FALSE, recursive = TRUE)
 
+# ==============================================================================
 # 3. 识别所有独特的心理学变量 (psyvar)
-# 我们通过扫描文件名来自动获取所有处理过的变量
-all_rds_files <- list.files(path = resultFolder_individual, pattern = "^anova_simulation_GoNoGo_.*\\.rds$", full.names = FALSE)
-if (length(all_rds_files) == 0) {
-  stop("错误: 在指定文件夹中找不到任何 'anova_simulation' RDS 文件。")
-}
-# 从文件名中提取变量名，例如 "SDQ_PP_sum_z"
-unique_psy_vars <- unique(str_match(all_rds_files, "anova_simulation_GoNoGo_(.*)_Time_\\d+\\.rds$")[,2])
+# +++ 修改点: 使用 task_name 变量来构建文件匹配模式 +++
+rds_pattern <- paste0("^anova_simulation_", task_name, "_.*\\.rds$")
+all_rds_files <- list.files(path = resultFolder_individual, pattern = rds_pattern, full.names = FALSE)
 
-cat("找到以下独特的心理学变量进行合并:\n")
+if (length(all_rds_files) == 0) {
+  stop(paste("错误: 在指定文件夹中找不到任何与", task_name, "相关的 'anova_simulation' RDS 文件。"))
+}
+
+# +++ 修改点: 同样，在提取变量名时使用 task_name +++
+regex_pattern <- paste0("anova_simulation_", task_name, "_(.*)_Time_\\d+\\.rds$")
+unique_psy_vars <- unique(str_match(all_rds_files, regex_pattern)[,2])
+
+cat(paste("找到以下与", task_name, "任务相关的独特心理学变量进行合并:\n"))
 print(unique_psy_vars)
 
+# ==============================================================================
 # 4. 循环合并每个变量的模拟结果
 final_results_list <- list() # 用于存储每个变量的最终统计结果
 
@@ -38,8 +48,8 @@ for (psyvar in unique_psy_vars) {
   
   cat(paste("\n===== 正在合并变量:", psyvar, "=====\n"))
   
-  # 找到当前变量对应的所有批次的RDS文件
-  pattern_rds <- paste0("anova_simulation_GoNoGo_", psyvar, "_Time_.*\\.rds$")
+  # +++ 修改点: 使用 task_name 构建RDS和CSV文件的查找模式 +++
+  pattern_rds <- paste0("anova_simulation_", task_name, "_", psyvar, "_Time_.*\\.rds$")
   rds_files_for_var <- list.files(path = resultFolder_individual, pattern = pattern_rds, full.names = TRUE)
   
   if (length(rds_files_for_var) == 0) {
@@ -47,16 +57,9 @@ for (psyvar in unique_psy_vars) {
     next
   }
   
-  # 读取所有RDS文件并将模拟数据合并
   all_sim_data <- map(rds_files_for_var, readRDS)
-  
-  # 将所有批次的模拟统计量向量合并成一个长向量
   combined_sim_stats <- unlist(map(all_sim_data, ~ .$simulation$simulated_stats))
-  
-  # 观测值应该是恒定的，从第一个文件中获取即可
   observed_stat <- all_sim_data[[1]]$simulation$observed_stat
-  
-  # 基于合并后的10000次模拟，重新计算p值
   final_p_value <- mean(combined_sim_stats >= observed_stat, na.rm = TRUE)
   
   cat(paste("合并了", length(combined_sim_stats), "次模拟。\n"))
@@ -64,8 +67,7 @@ for (psyvar in unique_psy_vars) {
   cat(paste("重新计算的 P-value:", format.pval(final_p_value, digits = 4, eps = 0.0001), "\n"))
   
   # --- 创建该变量的最终统计摘要 ---
-  # 我们需要原始的统计信息，可以从任一.csv文件中读取作为模板
-  pattern_csv <- paste0("corr_GoNoGo_", psyvar, "_Time_.*\\.csv$")
+  pattern_csv <- paste0("corr_", task_name, "_", psyvar, "_Time_.*\\.csv$")
   csv_file_template <- list.files(path = resultFolder_individual, pattern = pattern_csv, full.names = TRUE)[1]
   
   if (is.na(csv_file_template)) {
@@ -74,13 +76,9 @@ for (psyvar in unique_psy_vars) {
   }
   
   final_summary_row <- read.csv(csv_file_template)
-  # 更新p值和其他信息
   final_summary_row$anova.pvalues <- final_p_value
-  final_summary_row$Time_id <- "merged_10000" # 标记为合并结果
-  # (可选) 您可以添加一个新列来记录模拟次数
+  final_summary_row$Time_id <- "merged_10000"
   final_summary_row$n_sim <- length(combined_sim_stats)
-  
-  # 将这个最终结果存入列表
   final_results_list[[psyvar]] <- final_summary_row
   
   # --- 生成并保存合并后的分布图 ---
@@ -88,11 +86,14 @@ for (psyvar in unique_psy_vars) {
   dir.create(bootstrap_folder_final, showWarnings = FALSE, recursive = TRUE)
   
   clean_psyvar <- gsub("[/:*?\"<>|]", "_", psyvar)
-  file_path <- file.path(bootstrap_folder_final, paste0("sim_dist_final_", "GNGd_", clean_psyvar, ".png"))
+  # +++ 修改点: 在输出文件名中使用 task_name +++
+  file_path <- file.path(bootstrap_folder_final, paste0("sim_dist_final_", task_name, "_", clean_psyvar, ".png"))
   
   png(filename = file_path, width = 800, height = 600, res = 150)
+  # +++ 修改点: 在图表标题中使用 task_name +++
+  hist_title <- paste("Combined Bootstrap Distribution (N=", length(combined_sim_stats), ")\n", task_name, "vs", psyvar)
   hist(combined_sim_stats, 
-       main = paste("Combined Bootstrap Distribution (N=", length(combined_sim_stats), ")\n", "GNGd vs", psyvar),
+       main = hist_title,
        xlab = "Deviance Difference", col = "#56B1F7", border = "white", breaks = 100)
   abline(v = observed_stat, col = "#D55E00", lwd = 2.5)
   legend("topright", 
@@ -104,9 +105,11 @@ for (psyvar in unique_psy_vars) {
   cat(paste("最终的分布图已保存至:", file_path, "\n"))
 }
 
+# ==============================================================================
 # 5. 将所有变量的最终结果合并成一个数据框
 corr.result.df <- bind_rows(final_results_list)
 
+# ==============================================================================
 # 6. 进行多重比较校正 (Bonferroni)
 corr.result.df <- corr.result.df %>%
   mutate(
@@ -117,15 +120,16 @@ corr.result.df <- corr.result.df %>%
     sig = anovap.bonf < 0.05
   )
 
+# ==============================================================================
 # 7. 绘制最终的热图
-# (这部分代码与您之前的逻辑相同，现在使用的是经过正确合并和校正的数据)
-y_levels <- c("SDQ_PP_sum_z", "SDQ_ES_sum_z") # 确保这里包含了所有你想要展示的变量
+# 注意: 如果 oneback 任务分析的心理学变量不同，您需要修改下面的 y_levels 和 y_labels
+y_levels <- c("SDQ_PP_sum_z", "SDQ_ES_sum_z") 
 y_labels <- c("SDQ_ES_sum_z" = "Emotional Symptoms", "SDQ_PP_sum_z" = "Peer Problems")
 
-# 注意：如果 corr.result.df$parcel 列不存在，您可能需要从 psyvar 列创建它
-# 这里假设 parcel 列是存在的，如果不存在，请取消下面这行注释并调整
-# corr.result.df$parcel <- corr.result.df$psyvar
 corr.result.df$parcel <- factor(corr.result.df$psyvar, levels = rev(y_levels))
+
+# +++ 修改点: 在图表大标题中使用 task_name +++
+plot_title <- paste("Correlation between", task_name, "and Psychiatric Scores")
 
 Fig <- ggplot(corr.result.df, aes(x = period, y = parcel, fill = correstimate)) +
   geom_tile(color = "white", linewidth = 0.5) +
@@ -134,7 +138,7 @@ Fig <- ggplot(corr.result.df, aes(x = period, y = parcel, fill = correstimate)) 
   scale_fill_distiller(palette = "RdBu", direction = -1, name = "Estimate") +
   scale_y_discrete(labels = y_labels) +
   labs(
-    title = "Correlation between GNGd and Psychiatric Scores",
+    title = plot_title,
     x = NULL, y = "Psychiatric Scores"
   ) +
   theme_minimal(base_size = 14) +
@@ -146,12 +150,14 @@ Fig <- ggplot(corr.result.df, aes(x = period, y = parcel, fill = correstimate)) 
     panel.grid = element_blank()
   )
 
+# ==============================================================================
 # 8. 保存最终结果
-final_plot_path <- file.path(FigureFolder_final, "GNGd_correlation_heatmap_final.pdf")
+# +++ 修改点: 在最终输出文件名中使用 task_name +++
+final_plot_path <- file.path(FigureFolder_final, paste0(task_name, "_correlation_heatmap_final.pdf"))
 ggsave(final_plot_path, plot = Fig, width = 8, height = 7)
 cat("\n最终热图已保存至:", final_plot_path, "\n")
 
-final_csv_path <- file.path(resultFolder_final, "GNGd_corr_results_with_bonf_aggregated.csv")
+final_csv_path <- file.path(resultFolder_final, paste0(task_name, "_corr_results_with_bonf_aggregated.csv"))
 write.csv(corr.result.df, file = final_csv_path, row.names = FALSE)
 cat("最终Bonferroni校正结果已保存至:", final_csv_path, "\n")
 

@@ -10,31 +10,23 @@ suppressPackageStartupMessages({
 })
 
 # --- 1. 文件路径设置 ---
-# (保持您的路径设置不变)
-# --- 为了代码的可复现性，请在此处替换为您自己的文件路径 ---
 wd <- getwd()
 if (str_detect(wd, "cuizaixu_lab")){
-  # 示例: 您的服务器路径设置
   # interfileFolder <- "/path/to/your/interfile_folder"
   # functionFolder <- "/path/to/your/functions"
   # resultFolder <- "/path/to/your/results/phq_y09_interaction_with_main_effect"
   # FigureFolder <- '/path/to/your/figures/phq_y09_fig_with_main_effect'
 } else {
-  # 示例: 您的本地 Windows 路径设置
   interfileFolder <- "D:/datasets/yunfu/interfile_folder/temp"
   functionFolder <- "D:/code/EF_Normative_Model/functions"
   resultFolder <- "D:/datasets/yunfu/results/phq_y09_interaction_with_main_effect"
   FigureFolder <- 'D:/datasets/yunfu/figures/phq_y09_fig_with_main_effect'
 }
-# 创建输出目录，如果目录已存在则不显示警告
 dir.create(resultFolder, showWarnings = FALSE)
 dir.create(FigureFolder, showWarnings = FALSE)
 
 
 # --- 2. 数据读取与准备 ---
-# (您的数据读取和清洗代码保持不变)
-# --- 注意：请确保以下文件真实存在于您设置的 interfileFolder 路径中 ---
-# 读取行为任务数据
 GNGd_data <- readRDS(paste0(interfileFolder, '/GNGd_prime.deviations.rds'))
 back1_data <- readRDS(paste0(interfileFolder, '/back1Acc.deviations.rds'))
 back2_data <- readRDS(paste0(interfileFolder, '/back2Acc.deviations.rds'))
@@ -53,6 +45,8 @@ back2_data <- back2_data %>% dplyr::mutate(ID = as.character(x__ID), Sex = as.fa
 GNGd_data <- GNGd_data %>% dplyr::inner_join(PHQ_data, by = c("ID" = "用户ID"))
 back1_data <- back1_data %>% dplyr::inner_join(PHQ_data, by = c("ID" = "用户ID"))
 back2_data <- back2_data %>% dplyr::inner_join(PHQ_data, by = c("ID" = "用户ID"))
+
+
 
 # 将所有数据合并到一个数据框中，并创建任务因子
 df_all <- dplyr::bind_rows(
@@ -90,7 +84,6 @@ analyze_task_effects <- function(task_name, data) {
     return(NULL)
   }
   
-  # 动态调整k值，防止节点数过多
   k_use <- 3
   if (length(unique(dft$Age_year)) < k_use + 1) {
     cat("Warning: Not enough unique age points to fit a smooth. Skipping.\n")
@@ -100,7 +93,7 @@ analyze_task_effects <- function(task_name, data) {
   # --- 定义两个模型公式 ---
   # 模型1: 包含年龄与PHQ的交互作用
   formula_interaction <- deviationZ ~ Sex + s(Age_year, k = k_use, fx = F) + s(Age_year, by = PHQ_y09, k = k_use, fx = F)
-  # 模型2: 仅包含PHQ的主效应 (用于生成基准线)
+  # 模型2: 仅包含PHQ的主效应 
   formula_main <- deviationZ ~ Sex + s(Age_year, k = k_use, fx = F) + PHQ_y09
   
   # 拟合交互模型
@@ -192,7 +185,7 @@ analyze_task_effects <- function(task_name, data) {
   }
   
   # 返回包含两种结果的列表
-  return(list(effect_curves = effect_curves, main_effects = main_effects_df))
+  return(list(effect_curves = effect_curves, main_effects = main_effects_df, fit_main = fit_main))
 }
 
 # --- 4. 运行所有任务的分析 ---

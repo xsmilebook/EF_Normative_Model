@@ -21,6 +21,7 @@ SBQ_data_prepared <- SBQ_data %>%
   rename(x__ID = "用户ID") %>%
   mutate(x__ID = as.numeric(x__ID))
 
+# --- 修改点在这里 ---
 process_and_merge_data <- function(task_data, sbq_data) {
   task_data %>%
     mutate(
@@ -29,10 +30,11 @@ process_and_merge_data <- function(task_data, sbq_data) {
       School = as.factor(School)
     ) %>%
     inner_join(sbq_data, by = "x__ID") %>%
+    # 修改筛选逻辑：只要任意一个自杀未遂史变量有效，就保留该行
     filter(
-      SuicideAttempt_Lifetime %in% c(0, 1),
-      SuicideAttempt_Pastyear %in% c(0, 1)
+      (SuicideAttempt_Lifetime %in% c(0, 1)) | (SuicideAttempt_Pastyear %in% c(0, 1))
     ) %>%
+    # 协变量的NA值仍然需要被过滤
     filter(
       !is.na(Gender) & !is.na(Age_year) & !is.na(School)
     )
@@ -43,13 +45,15 @@ twoback_final <- process_and_merge_data(twoback_data, SBQ_data_prepared)
 gng_final     <- process_and_merge_data(GNG_data, SBQ_data_prepared)
 
 
-# 4. 定义PSM分析与绘图主函数 (最终修正版)
+# 4. 定义PSM分析与绘图主函数 (无需修改)
 run_psm_analysis_and_plot <- function(data, test_var, group_var) {
   
+  # 注意：这里的filter会为当前分析移除在group_var上为NA的行
   current_data <- data %>%
-    filter(!is.na(.data[[test_var]])) %>%
+    filter(!is.na(.data[[test_var]]) & !is.na(.data[[group_var]])) %>%
     mutate(!!sym(group_var) := as.numeric(as.character(.data[[group_var]])))
   
+  # ... 函数其余部分与之前相同 ...
   min_group_size <- min(table(current_data[[group_var]]), na.rm = TRUE)
   if (min_group_size < 5) {
     cat(paste("Skipping PSM for", group_var, "on", test_var, "due to small minority group size (n =", min_group_size, ").\n"))
@@ -68,11 +72,6 @@ run_psm_analysis_and_plot <- function(data, test_var, group_var) {
   
   matched_data <- match.data(match_obj)
   
-  # --- 修正点 2 (更稳健的版本): 动态识别并移除所有School相关变量 ---
-  # 1. 获取模型中所有协变量的名称
-  all_covariate_names <- colnames(match_obj$X)
-  # 2. 找到所有以 "School" 开头的变量名
-  
   bal_plot <- love.plot(
     match_obj, 
     binary = "std", 
@@ -80,7 +79,6 @@ run_psm_analysis_and_plot <- function(data, test_var, group_var) {
     title = paste("Covariate Balance for", group_var),
   )
   
-  # --- 修正点 1 (保持不变): 稳健的配对t检验 ---
   stats_label <- tryCatch({
     treatment_group <- matched_data %>% filter(.data[[group_var]] == 1) %>% arrange(subclass)
     control_group <- matched_data %>% filter(.data[[group_var]] == 0) %>% arrange(subclass)
@@ -99,7 +97,6 @@ run_psm_analysis_and_plot <- function(data, test_var, group_var) {
     "Paired t-test failed" 
   })
   
-  # --- 创建最终结果图 (不变) ---
   matched_data[[group_var]] <- as.factor(matched_data[[group_var]])
   plot_title <- paste(test_var, "by", group_var, "\n(After 1:1 PSM)")
   
@@ -130,13 +127,10 @@ analyses_to_run <- list(
   list(data = gng_final,     test = "d_prime_deviationZ",   group = "SuicideAttempt_Pastyear")
 )
 
-
-# 6. 循环执行所有分析并收集图表 (修改点 1: 只收集结果图)
-# 创建一个命名列表，以便后续更容易按名称引用
+# 6. 循环执行所有分析并收集图表 (无需修改)
 all_result_plots <- list()
 for (i in 1:length(analyses_to_run)) {
   params <- analyses_to_run[[i]]
-  # 创建一个唯一的、描述性的名称
   plot_name <- paste(params$test, params$group, sep = "_by_")
   
   cat("=====================================================\n")
@@ -144,35 +138,26 @@ for (i in 1:length(analyses_to_run)) {
   
   psm_results <- run_psm_analysis_and_plot(params$data, params$test, params$group)
   
-  # 只存储结果图，并使用描述性名称
   if (!is.null(psm_results)) {
     all_result_plots[[plot_name]] <- psm_results$result_plot
   }
 }
 
-
-# 7. 按照 GNG, Oneback, Twoback 的顺序重新排列图表并拼接 (修改点 2: 重新排版)
+# 7. 按照 GNG, Oneback, Twoback 的顺序重新排列图表并拼接 (无需修改)
 if (length(all_result_plots) > 0) {
-  
-  # 定义期望的图表顺序
-  # 第一行: Lifetime (终生)
   gng_lifetime_plot <- all_result_plots[["d_prime_deviationZ_by_SuicideAttempt_Lifetime"]]
   oneback_lifetime_plot <- all_result_plots[["Oneback_acc_deviationZ_by_SuicideAttempt_Lifetime"]]
   twoback_lifetime_plot <- all_result_plots[["Twoback_acc_deviationZ_by_SuicideAttempt_Lifetime"]]
   
-  # 第二行: Pastyear (过去一年)
   gng_pastyear_plot <- all_result_plots[["d_prime_deviationZ_by_SuicideAttempt_Pastyear"]]
   oneback_pastyear_plot <- all_result_plots[["Oneback_acc_deviationZ_by_SuicideAttempt_Pastyear"]]
   twoback_pastyear_plot <- all_result_plots[["Twoback_acc_deviationZ_by_SuicideAttempt_Pastyear"]]
   
-  # 按照 2行 x 3列 的顺序将图表放入一个列表中
-  # 列顺序: GNG | Oneback | Twoback
   ordered_plots <- list(
     gng_lifetime_plot, oneback_lifetime_plot, twoback_lifetime_plot,
     gng_pastyear_plot, oneback_pastyear_plot, twoback_pastyear_plot
   )
   
-  # 使用 patchwork 拼接图表
   final_plot <- patchwork::wrap_plots(ordered_plots, ncol = 3, nrow = 2) +
     plot_annotation(
       title = "Cognitive Performance by Suicide Attempt History (After PSM)",
@@ -180,12 +165,10 @@ if (length(all_result_plots) > 0) {
       tag_levels = 'A'
     )
   
-  # 保存PDF
   output_dir <- "D:/datasets/yunfu/results/SBQ"
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   
   output_pdf_path <- file.path(output_dir, "cognitive_performance_PSM_2x3_layout.pdf")
-  # 调整尺寸以适应新的 2x3 布局
   ggsave(output_pdf_path, final_plot, width = 18, height = 10, units = "in", device = "pdf", limitsize = FALSE)
   
   cat(paste("\n所有分析图表已按 2x3 布局成功拼接并保存到PDF文件:\n", output_pdf_path, "\n"))
